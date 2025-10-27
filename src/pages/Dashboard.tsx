@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Image, PlaySquare, Tv2, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const PUBLIC_MODE = (import.meta.env.VITE_PUBLIC_MODE ?? "true") === "true";
+
 const Dashboard = () => {
   const [stats, setStats] = useState({
     screens: 0,
@@ -18,26 +20,48 @@ const Dashboard = () => {
     const fetchStats = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user && !PUBLIC_MODE) return;
 
-        const [screensData, playlistsData, mediaData] = await Promise.all([
-          supabase.from("screens").select("*", { count: "exact" }).eq("created_by", user.id),
-          supabase.from("playlists").select("*", { count: "exact" }).eq("created_by", user.id),
-          supabase.from("media").select("*", { count: "exact" }).eq("uploaded_by", user.id),
-        ]);
+        if (!user && PUBLIC_MODE) {
+          const [screensData, playlistsData, mediaData] = await Promise.all([
+            supabase.from("screens").select("*", { count: "exact" }),
+            supabase.from("playlists").select("*", { count: "exact" }),
+            supabase.from("media").select("*", { count: "exact" }),
+          ]);
 
-        // Count active screens (online in last 5 minutes)
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const activeScreens = screensData.data?.filter(
-          (screen) => screen.last_seen && screen.last_seen > fiveMinutesAgo
-        ).length || 0;
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const activeScreens = screensData.data?.filter(
+            (screen) => screen.last_seen && screen.last_seen > fiveMinutesAgo
+          ).length || 0;
 
-        setStats({
-          screens: screensData.count || 0,
-          playlists: playlistsData.count || 0,
-          media: mediaData.count || 0,
-          activeScreens,
-        });
+          setStats({
+            screens: screensData.count || 0,
+            playlists: playlistsData.count || 0,
+            media: mediaData.count || 0,
+            activeScreens,
+          });
+          return;
+        }
+
+        if (user) {
+          const [screensData, playlistsData, mediaData] = await Promise.all([
+            supabase.from("screens").select("*", { count: "exact" }).eq("created_by", user.id),
+            supabase.from("playlists").select("*", { count: "exact" }).eq("created_by", user.id),
+            supabase.from("media").select("*", { count: "exact" }).eq("uploaded_by", user.id),
+          ]);
+
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const activeScreens = screensData.data?.filter(
+            (screen) => screen.last_seen && screen.last_seen > fiveMinutesAgo
+          ).length || 0;
+
+          setStats({
+            screens: screensData.count || 0,
+            playlists: playlistsData.count || 0,
+            media: mediaData.count || 0,
+            activeScreens,
+          });
+        }
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {

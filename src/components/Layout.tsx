@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import type { User } from "@supabase/supabase-js";
 
+const PUBLIC_MODE = (import.meta.env.VITE_PUBLIC_MODE ?? "true") === "true";
+
 interface LayoutProps {
   children: ReactNode;
 }
@@ -18,6 +20,11 @@ const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     const checkAuth = async () => {
+      if (PUBLIC_MODE) {
+        // Modo público: não redireciona para login e mantém user nulo
+        setUser(null);
+        return;
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/login");
@@ -28,6 +35,7 @@ const Layout = ({ children }: LayoutProps) => {
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (PUBLIC_MODE) return; // Ignora mudanças de auth em modo público
       if (event === "SIGNED_OUT") {
         navigate("/login");
       } else if (session) {

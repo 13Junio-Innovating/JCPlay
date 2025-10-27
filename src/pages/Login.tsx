@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { Monitor } from "lucide-react";
 import { loggingService } from "@/services/loggingService";
 
+const PUBLIC_MODE = (import.meta.env.VITE_PUBLIC_MODE ?? "true") === "true";
+
 const Login = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -19,6 +21,10 @@ const Login = () => {
 
   useEffect(() => {
     const checkUser = async () => {
+      if (PUBLIC_MODE) {
+        navigate("/dashboard");
+        return;
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         navigate("/dashboard");
@@ -39,25 +45,9 @@ const Login = () => {
 
       if (error) throw error;
 
-      // Log da atividade de login bem-sucedido
-      await loggingService.logUserActivity(
-        'login',
-        'auth',
-        undefined,
-        { email, login_method: 'email_password' }
-      );
-
       toast.success("Login realizado com sucesso!");
       navigate("/dashboard");
     } catch (error) {
-      // Log do erro de login
-      await loggingService.logError(
-        error instanceof Error ? error : new Error('Erro desconhecido no login'),
-        'login_error',
-        { email, attempted_action: 'login' },
-        'medium'
-      );
-      
       toast.error(error instanceof Error ? error.message : "Erro ao fazer login");
     } finally {
       setLoading(false);
@@ -76,31 +66,21 @@ const Login = () => {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/login`,
         },
       });
 
       if (error) throw error;
 
-      // Log da atividade de cadastro bem-sucedido
-      await loggingService.logUserActivity(
-        'signup',
-        'auth',
-        undefined,
-        { email, full_name: fullName, signup_method: 'email_password' }
-      );
+      // Se não houver sessão imediata, informar confirmação por email
+      if (!data.session) {
+        toast.info("Cadastro iniciado! Verifique seu e-mail para confirmar.");
+        return; // Não navegar sem sessão
+      }
 
       toast.success("Conta criada com sucesso!");
       navigate("/dashboard");
     } catch (error) {
-      // Log do erro de cadastro
-      await loggingService.logError(
-        error instanceof Error ? error : new Error('Erro desconhecido no cadastro'),
-        'signup_error',
-        { email, full_name: fullName, attempted_action: 'signup' },
-        'medium'
-      );
-      
       toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
     } finally {
       setLoading(false);
@@ -108,118 +88,115 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary">
-      <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl shadow-2xl">
-        <CardHeader className="text-center space-y-4">
-          <img src="/logo-costao.png" alt="Costão JCVision" className="mx-auto h-16 w-auto" />
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-           COSTAO JCVISION PLAY
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-           Gerencie seus painéis digitais de forma simples
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="space-y-2 text-center">
+          <CardTitle className="text-2xl font-bold">Acesso</CardTitle>
+          <CardDescription>
+            {PUBLIC_MODE ? "Autenticação desativada. Redirecionando para o dashboard..." : "Entre ou crie sua conta"}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Cadastro</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Senha</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
-                  disabled={loading}
-                >
-                  {loading ? "Entrando..." : "Entrar"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="w-full text-sm text-muted-foreground hover:text-primary"
-                  onClick={() => navigate("/forgot-password")}
-                >
-                  Esqueci minha senha
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nome completo</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Seu nome"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
-                  disabled={loading}
-                >
-                  {loading ? "Criando conta..." : "Criar conta"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
+        {!PUBLIC_MODE && (
+          <CardContent>
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Entrar</TabsTrigger>
+                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+              </TabsList>
+              <TabsContent value="login">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="bg-secondary/50 border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Senha</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="bg-secondary/50 border-border"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+                    disabled={loading}
+                  >
+                    {loading ? "Entrando..." : "Entrar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="w-full text-sm text-muted-foreground hover:text-primary"
+                    onClick={() => navigate("/forgot-password")}
+                  >
+                    Esqueci minha senha
+                  </Button>
+                </form>
+              </TabsContent>
+              <TabsContent value="signup">
+                <form onSubmit={handleSignup} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Nome completo</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="Seu nome"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      className="bg-secondary/50 border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="bg-secondary/50 border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Senha</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="bg-secondary/50 border-border"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+                    disabled={loading}
+                  >
+                    {loading ? "Criando conta..." : "Criar conta"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        )}
       </Card>
     </div>
   );
