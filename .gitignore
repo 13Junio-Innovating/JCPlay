@@ -30,5 +30,8 @@ dist-ssr
  # Bun lockfile
  bun.lockb
  
- # Vercel local files
- .vercel
+# Vercel local files
+.vercel
+
+# Supabase temp files
+supabase/.temp/
