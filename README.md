@@ -1,6 +1,6 @@
-# Display Forge
+# COSTAO JC-Vision Play
 
-Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e Supabase.
+Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e Supabase. Customizado para a marca COSTAO com suporte a vídeos do YouTube.
 
 ## 🚀 Funcionalidades
 
@@ -16,12 +16,14 @@ Sistema completo de sinalização digital para hotéis e estabelecimentos comerc
 
 ### 📱 Mídia e Conteúdo
 - Upload de imagens e vídeos
+- **Suporte a vídeos do YouTube** com autoplay e loop
 - Rotação automática de mídia (0°, 90°, 180°, 270°)
 - Suporte a SVG para gráficos vetoriais
 - 5 mídias de exemplo pré-carregadas
 
 ### 🔄 Player Avançado
 - Reprodução automática de playlists
+- **Embedding de vídeos do YouTube** para modo kiosk
 - Sistema offline com cache local
 - Indicadores visuais de status de conexão
 - Transições suaves entre mídias
@@ -38,6 +40,7 @@ Sistema completo de sinalização digital para hotéis e estabelecimentos comerc
 - **Backend**: Supabase (PostgreSQL + Auth + Storage)
 - **Notificações**: React Hot Toast
 - **Ícones**: Lucide React
+- **Branding**: Logo COSTAO integrado
 
 ## 📦 Instalação e Configuração
 
@@ -49,10 +52,10 @@ Sistema completo de sinalização digital para hotéis e estabelecimentos comerc
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/13Junio-Innovating/display-forge-36.git
+git clone https://github.com/13Junio-Innovating/JC-Vision_Play.git
 
 # 2. Navegue para o diretório
-cd display-forge-36
+cd JC-Vision_Play
 
 # 3. Instale as dependências
 npm install
@@ -84,13 +87,14 @@ npm run dev
 src/
 ├── components/          # Componentes reutilizáveis
 │   ├── ui/             # Componentes da UI (shadcn)
-│   └── Layout.tsx      # Layout principal
+│   └── Layout.tsx      # Layout principal com logo COSTAO
 ├── pages/              # Páginas da aplicação
 │   ├── Dashboard.tsx   # Painel principal
 │   ├── Media.tsx       # Gestão de mídia
 │   ├── Playlists.tsx   # Gestão de playlists
 │   ├── Screens.tsx     # Gestão de telas
-│   ├── Player.tsx      # Player de mídia
+│   ├── Player.tsx      # Player com suporte YouTube
+│   ├── Preview.tsx     # Preview com suporte YouTube
 │   └── ...            # Outras páginas
 ├── lib/               # Utilitários e configurações
 └── App.tsx           # Componente raiz
@@ -99,7 +103,7 @@ src/
 ## 🎯 Fluxo de Uso
 
 1. **Registro/Login**: Acesse o sistema com suas credenciais
-2. **Upload de Mídia**: Faça upload de imagens e vídeos na seção Mídia
+2. **Upload de Mídia**: Faça upload de imagens, vídeos ou URLs do YouTube
 3. **Criar Playlists**: Organize sua mídia em playlists temáticas
 4. **Configurar Telas**: Crie telas e associe playlists
 5. **Reprodução**: Use o Player para exibir conteúdo nas telas
@@ -120,6 +124,7 @@ O sistema inclui suporte offline robusto:
 - Detecção de status de conexão
 - Fallback para dados locais
 - Indicadores visuais de modo offline
+- **Nota**: Vídeos do YouTube requerem conexão com internet
 
 ## 🎨 Temas e Personalização
 
@@ -129,6 +134,23 @@ O sistema vem com 5 temas pré-configurados:
 - **Entretenimento Geral**: Conteúdo de entretenimento
 - **Informações Operacionais**: Avisos e informações
 - **Totem Vertical**: Conteúdo para displays verticais
+
+## 🎥 Suporte ao YouTube
+
+### URLs Suportadas
+- `https://www.youtube.com/watch?v=VIDEO_ID`
+- `https://youtu.be/VIDEO_ID`
+- `https://www.youtube.com/shorts/VIDEO_ID`
+- URLs de busca do Google com parâmetro `vid:`
+
+### Configuração para Raspberry Pi
+Para melhor performance com YouTube no Raspberry Pi:
+```bash
+chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble \
+  --incognito --autoplay-policy=no-user-gesture-required \
+  --enable-accelerated-video-decode --use-gl=egl \
+  "http://SEU_SERVIDOR/player/PLAYER_KEY"
+```
 
 ## 🤝 Contribuição
 
@@ -144,8 +166,8 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ## 📞 Suporte
 
-Para suporte e dúvidas, entre em contato através do [GitHub Issues](https://github.com/13Junio-Innovating/display-forge-36/issues).
+Para suporte e dúvidas, entre em contato através do [GitHub Issues](https://github.com/13Junio-Innovating/JC-Vision_Play/issues).
 
 ---
 
-Desenvolvido com ❤️ pela equipe 13Junio Innovating
+Desenvolvido com ❤️ pela equipe 13Junio Innovating para COSTAO
