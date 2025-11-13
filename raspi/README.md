@@ -102,6 +102,41 @@ rm -rf /home/pi/.kiosk-profile
 mkdir -p /home/pi/.kiosk-profile
 ```
 
+## Setup automatizado (Pi 4/5)
+
+Para configurar o Raspberry Pi 4/5 com aceleração, use o script:
+
+```bash
+# Copie para o Pi (exemplo):
+scp raspi/setup-pi4.sh pi@<IP_DO_PI>:/home/pi/
+
+# Execute com permissões de superusuário:
+sudo bash /home/pi/setup-pi4.sh --hostname CS-RSP-TERIVA \
+  --url "https://jc-vision-play.vercel.app/player/c5dc8d9fef4bdf859b1a887e566f5c89"
+```
+
+O script irá:
+- Instalar pacotes necessários e habilitar Desktop Autologin.
+- Ajustar `/boot/config.txt` para HDMI estável e ativar `dtoverlay=vc4-kms-v3d`.
+- Desativar screen blanking e ocultar cursor.
+- Instalar e iniciar o serviço `kiosk` específico do Pi 4/5.
+
+### Service Pi 4/5 manual
+
+Se preferir configurar manualmente, copie:
+
+```bash
+sudo cp /caminho/para/raspi/kiosk-pi4.service /etc/systemd/system/kiosk.service
+sudo systemctl daemon-reload
+sudo systemctl enable kiosk
+sudo systemctl restart kiosk
+```
+
+Flags principais usadas para Pi 4/5:
+- `--enable-accelerated-video-decode`, `--ignore-gpu-blocklist`
+- `--use-gl=egl`
+
+
 ## Setup automatizado (Pi 3)
 
 Para automatizar toda a configuração do Raspberry Pi 3, use o script:
