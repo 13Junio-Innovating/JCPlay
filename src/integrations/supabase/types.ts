@@ -104,6 +104,8 @@ export type Database = {
           last_seen: string | null
           name: string
           player_key: string
+          notification_emails: string[] | null
+          webhook_url: string | null
         }
         Insert: {
           assigned_playlist?: string | null
@@ -113,6 +115,8 @@ export type Database = {
           last_seen?: string | null
           name: string
           player_key?: string
+          notification_emails?: string[] | null
+          webhook_url?: string | null
         }
         Update: {
           assigned_playlist?: string | null
@@ -122,6 +126,8 @@ export type Database = {
           last_seen?: string | null
           name?: string
           player_key?: string
+          notification_emails?: string[] | null
+          webhook_url?: string | null
         }
         Relationships: [
           {

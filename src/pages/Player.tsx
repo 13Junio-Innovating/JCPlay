@@ -39,6 +39,7 @@ const Player = () => {
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [lastOnlineTime, setLastOnlineTime] = useState<number>(Date.now());
+  const [lastStatusNotified, setLastStatusNotified] = useState<'online' | 'offline' | null>(null);
 
   useEffect(() => {
     if (!playerKey) {
@@ -107,16 +108,50 @@ const Player = () => {
       });
       
       if (response.ok) {
+        const wasOffline = isOffline;
         setIsOffline(false);
         setLastOnlineTime(Date.now());
+        if (wasOffline && lastStatusNotified !== 'online') {
+          await notifyStatus('online');
+          setLastStatusNotified('online');
+        }
       } else {
         throw new Error('Connection failed');
       }
     } catch (error) {
       const offlineTime = Date.now() - lastOnlineTime;
       if (offlineTime > 30 * 60 * 1000) { // 30 minutos
-        setIsOffline(true);
+        if (!isOffline) {
+          setIsOffline(true);
+        }
+        if (lastStatusNotified !== 'offline') {
+          await notifyStatus('offline');
+          setLastStatusNotified('offline');
+        }
       }
+    }
+  };
+
+  const notifyStatus = async (status: 'online' | 'offline') => {
+    try {
+      if (!playerKey) return;
+      const key = `player_${playerKey}_last_notify_${status}`;
+      const last = parseInt(localStorage.getItem(key) || '0', 10);
+      if (Date.now() - last < 6 * 60 * 60 * 1000) {
+        return;
+      }
+      await supabase.functions.invoke('notify-status', {
+        body: { playerKey, status }
+      });
+      await loggingService.logUserActivity(
+        'player_status_notification',
+        'player',
+        playerKey,
+        { offline_status: status === 'offline' }
+      );
+      localStorage.setItem(key, String(Date.now()));
+    } catch (err) {
+      console.error('Erro ao notificar status:', err);
     }
   };
 
