@@ -78,6 +78,10 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          phone: string | null
+          whatsapp_verified: boolean | null
+          phone_verification_code: string | null
+          phone_verified_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -85,6 +89,10 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          phone?: string | null
+          whatsapp_verified?: boolean | null
+          phone_verification_code?: string | null
+          phone_verified_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -92,6 +100,10 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          phone?: string | null
+          whatsapp_verified?: boolean | null
+          phone_verification_code?: string | null
+          phone_verified_at?: string | null
         }
         Relationships: []
       }

@@ -16,6 +16,7 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     const checkUser = async () => {
@@ -75,6 +76,7 @@ const Login = () => {
         options: {
           data: {
             full_name: fullName,
+            phone,
           },
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
@@ -90,7 +92,21 @@ const Login = () => {
         { email, full_name: fullName, signup_method: 'email_password' }
       );
 
-      toast.success("Conta criada com sucesso!");
+      // Criar/atualizar perfil com telefone
+      const userId = data.user?.id;
+      if (userId) {
+        await supabase
+          .from('profiles')
+          .upsert({ id: userId, email, full_name: fullName, phone }, { onConflict: 'id' });
+        try {
+          await supabase.functions.invoke('send-phone-verification', { body: { phone, userId } });
+          toast.success("Conta criada e código de verificação enviado por SMS/WhatsApp!");
+        } catch {
+          toast.success("Conta criada com sucesso! (falha ao enviar verificação de telefone)");
+        }
+      } else {
+        toast.success("Conta criada com sucesso!");
+      }
       navigate("/dashboard");
     } catch (error) {
       // Log do erro de cadastro
@@ -206,6 +222,18 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
+                    className="bg-secondary/50 border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-phone">Telefone (WhatsApp)</Label>
+                  <Input
+                    id="signup-phone"
+                    type="tel"
+                    placeholder="+55 11 91234-5678"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
                     className="bg-secondary/50 border-border"
                   />
                 </div>
