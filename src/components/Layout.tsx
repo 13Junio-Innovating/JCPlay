@@ -103,13 +103,10 @@ const Layout = ({ children }: LayoutProps) => {
             </Sheet>
             
             <div className="flex items-center gap-2">
-            -              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-glow">
-            -                <Monitor className="w-5 h-5 text-white" />
-            -              </div>
-            -              <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            -                COSTAO JCVISION PLAY
-            -              </span>
-            +              <img src="/logo-costao.png" alt="Costão JCVision" className="h-10 w-auto" />
+                           <img src="/logo-costao.png" alt="Costão JCVision" className="h-10 w-auto" />
+                           <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                             COSTAO JCVISION PLAY
+                           </span>
             </div>
           </div>
 
