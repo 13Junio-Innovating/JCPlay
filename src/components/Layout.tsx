@@ -18,6 +18,11 @@ const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     const checkAuth = async () => {
+      const VIDEO_MODE = import.meta.env.VITE_VIDEO_MODE === "true";
+      if (VIDEO_MODE) {
+        setUser({ email: "video@example.com" } as unknown as User);
+        return;
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/login");
@@ -39,7 +44,10 @@ const Layout = ({ children }: LayoutProps) => {
   }, [navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const VIDEO_MODE = import.meta.env.VITE_VIDEO_MODE === "true";
+    if (!VIDEO_MODE) {
+      await supabase.auth.signOut();
+    }
     toast.success("Logout realizado com sucesso");
     navigate("/login");
   };
