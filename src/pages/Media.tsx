@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Upload, Trash2, Image as ImageIcon, Video, Clock, RotateCw } from "lucide-react";
+import { Upload, Link as LinkIcon, Trash2, Image as ImageIcon, Video, Clock, RotateCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { loggingService } from "@/services/loggingService";
@@ -29,6 +29,8 @@ const Media = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
   const MAX_UPLOAD_MB = parseInt(import.meta.env.VITE_MAX_UPLOAD_MB || '70');
 
   useEffect(() => {
@@ -55,6 +57,71 @@ const Media = () => {
       setLoading(false);
     }
   };
+
+  const handleAddLink = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = (formData.get("name") as string) || "Power BI";
+    const url = (formData.get("url") as string) || "";
+    const duration = parseInt((formData.get("duration") as string) || "10", 10);
+
+    if (!url) {
+      toast.error("Informe o link");
+      return;
+    }
+
+    if (isPowerBIUrl(url)) {
+      if (isPublicPowerBI(url)) {
+        toast.success("Link Power BI público detectado");
+      } else {
+        toast.warning("Link Power BI pode exigir login. Use ‘Publicar na web’. ");
+      }
+    } else if (isYouTubeUrl(url)) {
+      toast.info("Link YouTube detectado");
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error: insertError } = await supabase.from("media").insert({
+        name,
+        url,
+        type: "video",
+        duration,
+        uploaded_by: user.id,
+      });
+
+      if (insertError) throw insertError;
+
+      await loggingService.logUserActivity(
+        'add_link_media',
+        'media',
+        '',
+        { media_name: name, url_type: getLinkType(url), duration }
+      );
+
+      toast.success("Link adicionado com sucesso!");
+      setLinkDialogOpen(false);
+      setLinkUrl("");
+      fetchMedia();
+      (e.target as HTMLFormElement).reset();
+    } catch (error) {
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao adicionar link'),
+        'add_link_media_error',
+        { media_name: name, url },
+        'medium'
+      );
+      console.error("Error adding link:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao adicionar link");
+    }
+  };
+
+  const isYouTubeUrl = (url: string) => /(?:youtube\.com|youtu\.be)/.test(url);
+  const isPowerBIUrl = (url: string) => /app\.powerbi\.com/.test(url);
+  const getLinkType = (url: string) => (isPowerBIUrl(url) ? 'powerbi' : (isYouTubeUrl(url) ? 'youtube' : 'outro'));
+  const isPublicPowerBI = (url: string) => /app\.powerbi\.com\/view\?/.test(url);
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -218,6 +285,7 @@ const Media = () => {
             </p>
           </div>
 
+          <div className="flex gap-2">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
@@ -297,6 +365,43 @@ const Media = () => {
               </form>
             </DialogContent>
           </Dialog>
+          <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-border/50">
+                <LinkIcon className="mr-2 h-4 w-4" />
+                Adicionar Link
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
+                <DialogHeader>
+                  <DialogTitle>Adicionar Link</DialogTitle>
+                  <DialogDescription>
+                  Informe um link (YouTube ou Power BI) e a duração
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddLink} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome</Label>
+                    <Input id="name" name="name" type="text" placeholder="Ex: Relatório Vendas" className="bg-secondary/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="url">Link</Label>
+                    <Input id="url" name="url" type="url" placeholder="https://app.powerbi.com/..." className="bg-secondary/50" required value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
+                    {linkUrl && isPowerBIUrl(linkUrl) && (
+                      <p className="text-xs text-muted-foreground">
+                        {isPublicPowerBI(linkUrl) ? 'Detectado link público do Power BI' : 'Detectado link do Power BI que pode exigir login'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Duração (segundos)</Label>
+                    <Input id="duration" name="duration" type="number" defaultValue={10} min={5} className="bg-secondary/50" />
+                  </div>
+                  <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90">Salvar</Button>
+                </form>
+            </DialogContent>
+          </Dialog>
+          </div>
         </div>
 
         {loading ? (
@@ -334,6 +439,14 @@ const Media = () => {
                       alt={media.name}
                       className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                     />
+                  ) : isYouTubeUrl(media.url) ? (
+                    <div className="w-full h-full flex items-center justify-center bg-secondary/50 text-xs text-muted-foreground">
+                      YouTube
+                    </div>
+                  ) : isPowerBIUrl(media.url) ? (
+                    <div className="w-full h-full flex items-center justify-center bg-secondary/50 text-xs text-muted-foreground">
+                      {isPublicPowerBI(media.url) ? 'Power BI (público)' : 'Power BI (login)'}
+                    </div>
                   ) : (
                     <video
                       src={media.url}
@@ -344,6 +457,10 @@ const Media = () => {
                   <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
                     {media.type === "image" ? (
                       <ImageIcon className="h-3 w-3" />
+                    ) : isPowerBIUrl(media.url) ? (
+                      <LinkIcon className="h-3 w-3" />
+                    ) : isYouTubeUrl(media.url) ? (
+                      <LinkIcon className="h-3 w-3" />
                     ) : (
                       <Video className="h-3 w-3" />
                     )}

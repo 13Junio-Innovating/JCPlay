@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MediaCache } from "@/utils/mediaCache";
@@ -41,35 +41,9 @@ const Player = () => {
   const [lastOnlineTime, setLastOnlineTime] = useState<number>(Date.now());
   const [lastStatusNotified, setLastStatusNotified] = useState<'online' | 'offline' | null>(null);
 
-  useEffect(() => {
-    if (!playerKey) {
-      setError("Código do player inválido");
-      return;
-    }
+  
 
-    // Verificar se há dados offline salvos
-    loadOfflineData();
-    
-    fetchPlaylist();
-    updateLastSeen();
-
-    // Atualiza last_seen a cada 60 segundos
-    const lastSeenInterval = setInterval(updateLastSeen, 60000);
-
-    // Verifica por atualizações na playlist a cada 60 segundos
-    const playlistInterval = setInterval(fetchPlaylist, 60000);
-
-    // Verifica status de conexão a cada 30 segundos
-    const connectionInterval = setInterval(checkConnection, 30000);
-
-    return () => {
-      clearInterval(lastSeenInterval);
-      clearInterval(playlistInterval);
-      clearInterval(connectionInterval);
-    };
-  }, [playerKey]);
-
-  const loadOfflineData = () => {
+  const loadOfflineData = useCallback(() => {
     try {
       const offlineDataStr = localStorage.getItem(`player_${playerKey}_offline`);
       if (offlineDataStr) {
@@ -84,7 +58,7 @@ const Player = () => {
     } catch (error) {
       console.error("Error loading offline data:", error);
     }
-  };
+  }, [playerKey]);
 
   const saveOfflineData = (playlist: Playlist, mediaFiles: MediaFile[], cachedUrls: { [mediaId: string]: string }) => {
     try {
@@ -100,7 +74,7 @@ const Player = () => {
     }
   };
 
-  const checkConnection = async () => {
+  const checkConnection = useCallback(async () => {
     try {
       const response = await fetch('/favicon.ico', { 
         method: 'HEAD',
@@ -130,7 +104,7 @@ const Player = () => {
         }
       }
     }
-  };
+  }, [isOffline, lastOnlineTime, lastStatusNotified]);
 
   const notifyStatus = async (status: 'online' | 'offline') => {
     try {
@@ -168,7 +142,7 @@ const Player = () => {
     return () => clearTimeout(timer);
   }, [currentIndex, playlist]);
 
-  const updateLastSeen = async () => {
+  const updateLastSeen = useCallback(async () => {
     if (!playerKey) return;
 
     try {
@@ -181,9 +155,9 @@ const Player = () => {
     } catch (error) {
       console.error("Error updating last_seen:", error);
     }
-  };
+  }, [playerKey]);
 
-  const fetchPlaylist = async () => {
+  const fetchPlaylist = useCallback(async () => {
     if (!playerKey) return;
 
     try {
@@ -228,12 +202,16 @@ const Player = () => {
       setMediaFiles(newMediaFiles);
       setError(null);
 
-      // Pré-carregar mídias no cache
-      await MediaCache.preloadPlaylistMedia(newMediaFiles);
+      const shouldCache = (m: MediaFile) => {
+        const u = m.url || '';
+        return !isYouTubeUrl(u) && !isPowerBIUrl(u);
+      };
+      await MediaCache.preloadPlaylistMedia(newMediaFiles.filter(shouldCache));
       
       // Criar URLs em cache para uso offline
       const newCachedUrls: { [mediaId: string]: string } = {};
       for (const media of newMediaFiles) {
+        if (!shouldCache(media)) continue;
         const cachedUrl = await MediaCache.getCachedMediaUrl(media.url);
         if (cachedUrl) {
           newCachedUrls[media.id] = cachedUrl;
@@ -283,7 +261,28 @@ const Player = () => {
         setError("Erro ao carregar playlist");
       }
     }
-  };
+  }, [playerKey, isOffline, lastOnlineTime, playlist, saveOfflineData]);
+
+  useEffect(() => {
+    if (!playerKey) {
+      setError("Código do player inválido");
+      return;
+    }
+
+    loadOfflineData();
+    fetchPlaylist();
+    updateLastSeen();
+
+    const lastSeenInterval = setInterval(updateLastSeen, 60000);
+    const playlistInterval = setInterval(fetchPlaylist, 60000);
+    const connectionInterval = setInterval(checkConnection, 30000);
+
+    return () => {
+      clearInterval(lastSeenInterval);
+      clearInterval(playlistInterval);
+      clearInterval(connectionInterval);
+    };
+  }, [playerKey, loadOfflineData, fetchPlaylist, updateLastSeen, checkConnection]);
 
   const getCurrentMedia = () => {
     if (!playlist || playlist.items.length === 0) return null;
@@ -346,6 +345,11 @@ const Player = () => {
           🔌 Offline
         </div>
       )}
+      {currentMedia && currentMedia.type === 'video' && isPowerBIUrl(currentMedia.url) && !isPublicPowerBI(currentMedia.url) && (
+        <div className="absolute top-4 left-4 z-50 bg-yellow-900/80 text-yellow-200 px-3 py-1 rounded-full text-xs">
+          Link Power BI pode exigir login. Use “Publicar na web”.
+        </div>
+      )}
       
       {currentMedia.type === "image" ? (
         <img
@@ -355,11 +359,20 @@ const Player = () => {
           className="w-full h-full object-cover animate-in fade-in duration-1000"
         />
       ) : isYouTubeUrl(currentMedia.url) && getYouTubeEmbedUrl(currentMedia.url) ? (
-        <iframe
+        <iframe title="YouTube"
           key={currentMedia.id}
           src={getYouTubeEmbedUrl(currentMedia.url) || ''}
           className="w-full h-full"
           allow="autoplay; fullscreen"
+          allowFullScreen
+          frameBorder="0"
+        />
+      ) : isPowerBIUrl(currentMedia.url) ? (
+        <iframe title="Power BI"
+          key={currentMedia.id}
+          src={getPowerBIEmbedUrl(currentMedia.url) || ''}
+          className="w-full h-full"
+          allow="fullscreen"
           allowFullScreen
           frameBorder="0"
         />
@@ -396,7 +409,9 @@ const extractYouTubeId = (url: string): string | null => {
       const v = u.searchParams.get('v');
       if (v) return v;
     }
-  } catch {}
+  } catch (e) {
+    return null;
+  }
   const match = url.match(/vid:([A-Za-z0-9_-]+)/);
   return match ? match[1] : null;
 };
@@ -406,3 +421,20 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
   if (!id) return null;
   return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&iv_load_policy=3&rel=0&modestbranding=1`;
 };
+
+// Helpers para suporte a Power BI
+const isPowerBIUrl = (url: string) => /app\.powerbi\.com/.test(url);
+const getPowerBIEmbedUrl = (url: string): string => {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('app.powerbi.com')) {
+      if (!u.searchParams.has('filterPaneEnabled')) u.searchParams.set('filterPaneEnabled', 'false');
+      if (!u.searchParams.has('navContentPaneEnabled')) u.searchParams.set('navContentPaneEnabled', 'false');
+      return u.toString();
+    }
+  } catch (e) {
+    return url;
+  }
+  return url;
+};
+const isPublicPowerBI = (url: string) => /app\.powerbi\.com\/view\?/.test(url);
