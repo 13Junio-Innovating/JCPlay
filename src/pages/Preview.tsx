@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,24 +33,7 @@ const Preview = () => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchPlaylist();
-  }, [id]);
-
-  useEffect(() => {
-    if (!isPlaying || !playlist || playlist.items.length === 0) return;
-
-    const currentItem = playlist.items[currentIndex];
-    const duration = currentItem.duration * 1000;
-
-    const timer = setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % playlist.items.length);
-    }, duration);
-
-    return () => clearTimeout(timer);
-  }, [currentIndex, isPlaying, playlist]);
-
-  const fetchPlaylist = async () => {
+  const fetchPlaylist = useCallback(async () => {
     try {
       const { data: playlistData, error: playlistError } = await supabase
         .from("playlists")
@@ -78,7 +61,25 @@ const Preview = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    fetchPlaylist();
+  }, [fetchPlaylist]);
+
+  useEffect(() => {
+    if (!isPlaying || !playlist || playlist.items.length === 0) return;
+
+    const currentItem = playlist.items[currentIndex];
+    const duration = currentItem.duration * 1000;
+
+    const timer = setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % playlist.items.length);
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [currentIndex, isPlaying, playlist]);
+
 
   const getCurrentMedia = () => {
     if (!playlist || playlist.items.length === 0) return null;
@@ -131,6 +132,9 @@ const Preview = () => {
             <p className="text-sm text-white/80">
               {currentIndex + 1} de {playlist.items.length}
             </p>
+            {currentMedia.type === 'video' && isPowerBIUrl(currentMedia.url) && !isPublicPowerBI(currentMedia.url) && (
+              <p className="mt-2 text-xs text-yellow-200">Este link do Power BI pode exigir login. Use “Publicar na web”.</p>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -156,11 +160,20 @@ const Preview = () => {
             className="max-w-full max-h-full object-contain animate-in fade-in duration-500"
           />
         ) : isYouTubeUrl(currentMedia.url) && getYouTubeEmbedUrl(currentMedia.url) ? (
-          <iframe
+          <iframe title="YouTube"
             key={currentMedia.id}
             src={getYouTubeEmbedUrl(currentMedia.url) || ''}
             className="w-full h-full"
             allow="autoplay; fullscreen"
+            allowFullScreen
+            frameBorder="0"
+          />
+        ) : isPowerBIUrl(currentMedia.url) ? (
+          <iframe title="Power BI"
+            key={currentMedia.id}
+            src={getPowerBIEmbedUrl(currentMedia.url) || ''}
+            className="w-full h-full"
+            allow="fullscreen"
             allowFullScreen
             frameBorder="0"
           />
@@ -217,7 +230,9 @@ const extractYouTubeId = (url: string): string | null => {
       const v = u.searchParams.get('v');
       if (v) return v;
     }
-  } catch {}
+  } catch (e) {
+    return null;
+  }
   const match = url.match(/vid:([A-Za-z0-9_-]+)/);
   return match ? match[1] : null;
 };
@@ -227,3 +242,20 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
   if (!id) return null;
   return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&iv_load_policy=3&rel=0&modestbranding=1`;
 };
+
+// Helpers para suporte a Power BI
+const isPowerBIUrl = (url: string) => /app\.powerbi\.com/.test(url);
+const getPowerBIEmbedUrl = (url: string): string => {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('app.powerbi.com')) {
+      if (!u.searchParams.has('filterPaneEnabled')) u.searchParams.set('filterPaneEnabled', 'false');
+      if (!u.searchParams.has('navContentPaneEnabled')) u.searchParams.set('navContentPaneEnabled', 'false');
+      return u.toString();
+    }
+  } catch (e) {
+    return url;
+  }
+  return url;
+};
+const isPublicPowerBI = (url: string) => /app\.powerbi\.com\/view\?/.test(url);
