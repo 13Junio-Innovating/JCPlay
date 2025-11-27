@@ -120,7 +120,7 @@ const Player = () => {
       }
     } catch (error) {
       const offlineTime = Date.now() - lastOnlineTime;
-      if (offlineTime > 30 * 60 * 1000) { // 30 minutos
+      if (offlineTime > 5 * 60 * 1000) {
         if (!isOffline) {
           setIsOffline(true);
         }
@@ -172,10 +172,7 @@ const Player = () => {
     if (!playerKey) return;
 
     try {
-      const { error } = await supabase
-        .from("screens")
-        .update({ last_seen: new Date().toISOString() })
-        .eq("player_key", playerKey);
+      const { error } = await supabase.rpc('update_screen_last_seen', { p_player_key: playerKey });
 
       if (error) throw error;
     } catch (error) {
@@ -224,16 +221,28 @@ const Player = () => {
       const newPlaylist = { ...playlistData, items };
       const newMediaFiles = mediaData || [];
 
+      const signedMediaFiles = await Promise.all((newMediaFiles || []).map(async (m: any) => {
+        try {
+          const parts = (m.url || '').split('/');
+          const filePath = parts.slice(-2).join('/');
+          const { data: signed } = await supabase.storage.from('media').createSignedUrl(filePath, 3600);
+          if (signed?.signedUrl) {
+            return { ...m, url: signed.signedUrl };
+          }
+        } catch {}
+        return m;
+      }));
+
       setPlaylist(newPlaylist);
-      setMediaFiles(newMediaFiles);
+      setMediaFiles(signedMediaFiles);
       setError(null);
 
       // Pré-carregar mídias no cache
-      await MediaCache.preloadPlaylistMedia(newMediaFiles);
+      await MediaCache.preloadPlaylistMedia(signedMediaFiles);
       
       // Criar URLs em cache para uso offline
       const newCachedUrls: { [mediaId: string]: string } = {};
-      for (const media of newMediaFiles) {
+      for (const media of signedMediaFiles) {
         const cachedUrl = await MediaCache.getCachedMediaUrl(media.url);
         if (cachedUrl) {
           newCachedUrls[media.id] = cachedUrl;

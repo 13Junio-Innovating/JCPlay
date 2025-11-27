@@ -1,0 +1,9 @@
+01-intro.webm|6|COSTAO JCVISION PLAY|Bem-vindo. Apresentação rápida do sistema.
+02-login.webm|8|Login|Faça login com seu e-mail e senha.
+02-login.webm|8|Cadastro|Crie sua conta em poucos passos.
+03-midias.webm|10|Mídias|Envie imagens e vídeos e defina a duração.
+04-playlists.webm|10|Playlists|Monte sequências e ajuste o tempo de cada mídia.
+05-telas-player.webm|8|Telas|Crie uma tela e atribua a playlist.
+05-telas-player.webm|8|Abrir Player|Abra o player para exibir na TV.
+06-dashboard-logs.webm|8|Monitoramento|Acompanhe status online e atividades.
+01-intro.webm|6|Resumo|Enviar mídias, criar playlist, atribuir e abrir o player.

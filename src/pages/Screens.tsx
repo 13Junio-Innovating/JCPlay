@@ -25,7 +25,6 @@ interface Screen {
   last_seen: string | null;
   created_at: string;
   notification_emails?: string[];
-  webhook_url?: string | null;
 }
 
 const Screens = () => {
@@ -34,6 +33,11 @@ const Screens = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [screenName, setScreenName] = useState("");
+  const [userPhone, setUserPhone] = useState<string>("");
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -46,7 +50,7 @@ const Screens = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [screensData, playlistsData] = await Promise.all([
+      const [screensData, playlistsData, profileData] = await Promise.all([
         supabase
           .from("screens")
           .select("*")
@@ -57,6 +61,11 @@ const Screens = () => {
           .select("id, name")
           .eq("created_by", user.id)
           .order("name"),
+        supabase
+          .from("profiles")
+          .select("phone, whatsapp_verified")
+          .eq("id", user.id)
+          .single(),
       ]);
 
       if (screensData.error) throw screensData.error;
@@ -64,11 +73,62 @@ const Screens = () => {
 
       setScreens(screensData.data || []);
       setPlaylists(playlistsData.data || []);
+      const existingPhone = (profileData as any).data?.phone;
+      const verified = (profileData as any).data?.whatsapp_verified || false;
+      setUserPhone(existingPhone || "+55 31988035657");
+      setIsVerified(verified);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveUserPhone = async () => {
+    try {
+      setSavingPhone(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+      const { error } = await supabase
+        .from('profiles')
+        .update({ phone: userPhone || null, whatsapp_verified: false })
+        .eq('id', user.id);
+      if (error) throw error;
+      try {
+        await supabase.functions.invoke('send-phone-verification', { body: { phone: userPhone, userId: user.id } });
+        toast.success('Telefone salvo e código enviado por WhatsApp/SMS');
+        setIsVerified(false);
+      } catch {
+        toast.success('Telefone salvo (falha ao enviar verificação)');
+      }
+    } catch (err) {
+      console.error('Error saving phone:', err);
+      toast.error('Erro ao salvar telefone');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
+  const verifyPhoneCode = async () => {
+    try {
+      setVerifying(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+      const { data, error } = await supabase.functions.invoke('verify-phone-code', { body: { userId: user.id, code: verificationCode } });
+      if (error) throw error;
+      if (data?.ok) {
+        toast.success('Telefone verificado com sucesso');
+        setIsVerified(true);
+        setVerificationCode("");
+      } else {
+        toast.error('Código inválido');
+      }
+    } catch (err) {
+      console.error('Error verifying phone:', err);
+      toast.error('Erro ao verificar telefone');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -338,24 +398,7 @@ const Screens = () => {
     return `${window.location.origin}/p/${playerKey}`;
   };
 
-  const handleUpdateNotifications = async (screenId: string, emailsStr: string, webhookUrl: string) => {
-    try {
-      const emails = emailsStr
-        .split(',')
-        .map((e) => e.trim())
-        .filter((e) => e.length > 0);
-      const { error } = await supabase
-        .from('screens')
-        .update({ notification_emails: emails, webhook_url: webhookUrl || null })
-        .eq('id', screenId);
-      if (error) throw error;
-      toast.success('Notificações atualizadas');
-      fetchData();
-    } catch (error) {
-      console.error('Error updating notifications:', error);
-      toast.error('Erro ao atualizar notificações');
-    }
-  };
+  // Removido gerenciamento de e-mails de notificação nesta interface
 
   return (
     <Layout>
@@ -407,6 +450,45 @@ const Screens = () => {
               </DialogContent>
             </Dialog>
           </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
+            <CardContent className="p-6 space-y-2">
+              <Label className="text-xs text-muted-foreground">Telefone de Notificação (WhatsApp)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={userPhone}
+                  onChange={(e) => setUserPhone(e.target.value)}
+                  placeholder="+55 31 98803-5657"
+                  className="bg-secondary/50 text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-border/50"
+                  onClick={saveUserPhone}
+                  disabled={savingPhone}
+                >
+                  {savingPhone ? 'Salvando...' : 'Salvar e Verificar'}
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Código de verificação</Label>
+                <Input
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="000000"
+                  className="bg-secondary/50 text-xs w-32"
+                />
+                <Button variant="outline" size="sm" className="border-border/50" onClick={verifyPhoneCode} disabled={verifying || !verificationCode}>
+                  {verifying ? 'Verificando...' : 'Verificar código'}
+                </Button>
+                <span className={`text-xs ${isVerified ? 'text-green-400' : 'text-red-400'}`}>{isVerified ? 'Verificado' : 'Não verificado'}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Usado para receber notificações de status do player.</p>
+            </CardContent>
+          </Card>
         </div>
 
         {loading ? (
@@ -491,24 +573,6 @@ const Screens = () => {
                       </Button>
                     </div>
                     <Label className="text-xs text-muted-foreground mt-3">
-                      URL Completa
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={getPlayerUrl(screen.player_key)}
-                        readOnly
-                        className="bg-secondary/50 text-xs font-mono"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => navigator.clipboard.writeText(getPlayerUrl(screen.player_key))}
-                        className="border-border/50 shrink-0"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Label className="text-xs text-muted-foreground mt-3">
                       URL Curta
                     </Label>
                     <div className="flex gap-2">
@@ -526,48 +590,7 @@ const Screens = () => {
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
-                    <Label className="text-xs text-muted-foreground mt-3">
-                      E-mails para notificação (separados por vírgula)
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        defaultValue={(screen.notification_emails || []).join(', ')}
-                        className="bg-secondary/50 text-xs"
-                        onBlur={(e) => handleUpdateNotifications(screen.id, e.currentTarget.value, screen.webhook_url || '')}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-border/50"
-                        onClick={(e) => {
-                          const input = (e.currentTarget.previousSibling as HTMLInputElement);
-                          handleUpdateNotifications(screen.id, input.value, screen.webhook_url || '');
-                        }}
-                      >
-                        Salvar
-                      </Button>
-                    </div>
-                    <Label className="text-xs text-muted-foreground mt-3">
-                      Webhook URL
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        defaultValue={screen.webhook_url || ''}
-                        className="bg-secondary/50 text-xs"
-                        onBlur={(e) => handleUpdateNotifications(screen.id, (screen.notification_emails || []).join(', '), e.currentTarget.value)}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-border/50"
-                        onClick={(e) => {
-                          const input = (e.currentTarget.previousSibling as HTMLInputElement);
-                          handleUpdateNotifications(screen.id, (screen.notification_emails || []).join(', '), input.value);
-                        }}
-                      >
-                        Salvar
-                      </Button>
-                    </div>
+                    
                   </div>
 
                   <div className="space-y-2">
