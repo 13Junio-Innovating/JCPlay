@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "record:flows": "node scripts/record-flows.mjs",
     "assemble:video": "node scripts/assemble-video.mjs",
-    "assemble:slideshow": "node scripts/slideshow.mjs"
+    "assemble:slideshow": "node scripts/slideshow.mjs",
+    "mock:webhook": "node scripts/mock-whatsapp.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
