@@ -15,9 +15,11 @@ const cors = (origin: string) => ({
 const randomCode = () => String(Math.floor(100000 + Math.random() * 900000))
 const WHATSAPP_WEBHOOK_URL = Deno.env.get('WHATSAPP_WEBHOOK_URL')
 const WEBHOOK_API_KEY = Deno.env.get('WEBHOOK_API_KEY')
+const APP_BASE_URL = Deno.env.get('APP_BASE_URL') || '*'
+const DEBUG_SHOW_CODE = (Deno.env.get('DEBUG_SHOW_CODE') || 'false').toLowerCase() === 'true'
 
 const handler = async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: cors(req.headers.get('Origin') || '*') })
+  if (req.method === 'OPTIONS') return new Response(null, { headers: cors(APP_BASE_URL) })
   try {
     const { phone, userId } = await req.json()
     if (!phone || !userId) return new Response(JSON.stringify({ error: 'Missing phone or userId' }), { status: 400, headers: cors(req.headers.get('Origin') || '*') })
@@ -37,9 +39,10 @@ const handler = async (req: Request): Promise<Response> => {
       })
     }
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: cors(req.headers.get('Origin') || '*') })
+    const payload = DEBUG_SHOW_CODE ? { ok: true, code } : { ok: true }
+    return new Response(JSON.stringify(payload), { status: 200, headers: cors(APP_BASE_URL) })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: cors(req.headers.get('Origin') || '*') })
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: cors(APP_BASE_URL) })
   }
 }
 

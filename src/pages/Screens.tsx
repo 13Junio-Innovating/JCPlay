@@ -96,8 +96,13 @@ const Screens = () => {
         .eq('id', user.id);
       if (error) throw error;
       try {
-        await supabase.functions.invoke('send-phone-verification', { body: { phone: userPhone, userId: user.id } });
-        toast.success('Telefone salvo e código enviado por WhatsApp/SMS');
+        const { data } = await supabase.functions.invoke('send-phone-verification', { body: { phone: userPhone, userId: user.id } });
+        if (data?.code) {
+          setVerificationCode(data.code);
+          toast.success('Telefone salvo. Código gerado. Insira para verificar.');
+        } else {
+          toast.success('Telefone salvo e código enviado por WhatsApp/SMS');
+        }
         setIsVerified(false);
       } catch {
         toast.success('Telefone salvo (falha ao enviar verificação)');

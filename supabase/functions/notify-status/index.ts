@@ -43,12 +43,12 @@ const sendEmail = async (to: string, subject: string, html: string, text: string
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: cors(req.headers.get('Origin') || '*') })
+    return new Response(null, { headers: cors(APP_BASE_URL) })
   }
   try {
     const { playerKey, status } = await req.json()
     if (!playerKey || (status !== 'online' && status !== 'offline')) {
-      return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400, headers: cors(req.headers.get('Origin') || '*') })
+      return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400, headers: cors(APP_BASE_URL) })
     }
 
     // Find screen by player_key
@@ -59,7 +59,7 @@ const handler = async (req: Request): Promise<Response> => {
       .single()
 
     if (screenError || !screen) {
-      return new Response(JSON.stringify({ error: 'Screen not found' }), { status: 404, headers: cors(req.headers.get('Origin') || '*') })
+      return new Response(JSON.stringify({ error: 'Screen not found' }), { status: 404, headers: cors(APP_BASE_URL) })
     }
 
     // Get user email
@@ -68,7 +68,7 @@ const handler = async (req: Request): Promise<Response> => {
     const extra = Array.isArray((screen as any).notification_emails) ? (screen as any).notification_emails as string[] : []
     const recipients = [email, ...extra, ...EXTRA_NOTIFY_EMAILS].filter((v, i, a) => !!v && a.indexOf(v) === i)
     if (recipients.length === 0) {
-      return new Response(JSON.stringify({ error: 'No recipients' }), { status: 404, headers: cors(req.headers.get('Origin') || '*') })
+      return new Response(JSON.stringify({ error: 'No recipients' }), { status: 404, headers: cors(APP_BASE_URL) })
     }
 
     const fullUrl = `${APP_BASE_URL}/player/${playerKey}`
@@ -122,9 +122,9 @@ URL curta: ${shortUrl}
       }
     }
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: cors(req.headers.get('Origin') || '*') })
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: cors(APP_BASE_URL) })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: cors(req.headers.get('Origin') || '*') })
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: cors(APP_BASE_URL) })
   }
 }
 
