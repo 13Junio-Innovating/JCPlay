@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { MediaCache } from "@/utils/mediaCache";
 import { loggingService } from "@/services/loggingService";
 
@@ -107,6 +107,8 @@ const Player = () => {
   }, [isOffline, lastOnlineTime, lastStatusNotified]);
 
   const notifyStatus = async (status: 'online' | 'offline') => {
+    // Notifications disabled
+    /*
     try {
       if (!playerKey) return;
       const key = `player_${playerKey}_last_notify_${status}`;
@@ -114,9 +116,7 @@ const Player = () => {
       if (Date.now() - last < 6 * 60 * 60 * 1000) {
         return;
       }
-      await supabase.functions.invoke('notify-status', {
-        body: { playerKey, status }
-      });
+      
       await loggingService.logUserActivity(
         'player_status_notification',
         'player',
@@ -127,6 +127,7 @@ const Player = () => {
     } catch (err) {
       console.error('Erro ao notificar status:', err);
     }
+    */
   };
 
   useEffect(() => {
@@ -143,68 +144,46 @@ const Player = () => {
   }, [currentIndex, playlist]);
 
   const updateLastSeen = useCallback(async () => {
-    if (!playerKey) return;
+    if (!playerKey || isOffline) return;
 
     try {
-      const { error } = await supabase.rpc('update_screen_last_seen', { p_player_key: playerKey });
-
-      if (error) throw error;
+      await api.player.heartbeat(playerKey);
     } catch (error) {
       console.error("Error updating last_seen:", error);
     }
-  }, [playerKey]);
+  }, [playerKey, isOffline]);
 
   const fetchPlaylist = useCallback(async () => {
     if (!playerKey) return;
 
     try {
-      // Buscar a tela pelo player_key
-      const { data: screenData, error: screenError } = await supabase
-        .from("screens")
-        .select("assigned_playlist")
-        .eq("player_key", playerKey)
-        .single();
+      const data = await api.player.getData(playerKey);
 
-      if (screenError) throw screenError;
-
-      if (!screenData.assigned_playlist) {
+      if (data.error) throw new Error(data.error);
+      if (!data.playlist) {
         setError("Nenhuma playlist atribuída a esta tela");
         setPlaylist(null);
         return;
       }
 
-      // Buscar a playlist
-      const { data: playlistData, error: playlistError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("id", screenData.assigned_playlist)
-        .single();
+      const playlistData = data.playlist;
+      const mediaData = data.media;
 
-      if (playlistError) throw playlistError;
-
-      // Buscar as mídias
-      const items = playlistData.items as unknown as PlaylistItem[];
-      const mediaIds = items.map((item) => item.mediaId);
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .select("*")
-        .in("id", mediaIds);
-
-      if (mediaError) throw mediaError;
-
+      const items = playlistData.items as PlaylistItem[];
+      
       const newPlaylist = { ...playlistData, items };
       const newMediaFiles = mediaData || [];
 
       const signedMediaFiles = await Promise.all((newMediaFiles || []).map(async (m: any) => {
         try {
-          const parts = (m.url || '').split('/');
-          const filePath = parts.slice(-2).join('/');
-          const { data: signed } = await supabase.storage.from('media').createSignedUrl(filePath, 3600);
-          if (signed?.signedUrl) {
-            return { ...m, url: signed.signedUrl };
-          }
-        } catch {}
-        return m;
+          return {
+            ...m,
+            url: m.url 
+          };
+        } catch (e) {
+          console.error(`Error processing media ${m.name}:`, e);
+          return m;
+        }
       }));
 
       setPlaylist(newPlaylist);

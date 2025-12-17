@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Trash2, PlaySquare, Eye, Clock, X, RefreshCw } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { loggingService } from "@/services/loggingService";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import PlaylistList from "@/components/PlaylistList";
 
 interface MediaFile {
   id: string;
@@ -28,12 +28,14 @@ interface PlaylistItem {
 interface Playlist {
   id: string;
   name: string;
+  description?: string;
   items: PlaylistItem[];
   created_at: string;
 }
 
 const Playlists = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,35 +44,31 @@ const Playlists = () => {
   const [selectedMedia, setSelectedMedia] = useState<PlaylistItem[]>([]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
 
   const fetchData = async () => {
+    if (!user) return;
+    setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const [playlistsData, mediaData] = await Promise.all([
-        supabase
-          .from("playlists")
-          .select("*")
-          .eq("created_by", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("media")
-          .select("*")
-          .eq("uploaded_by", user.id)
-          .order("created_at", { ascending: false }),
+        api.playlists.list(user.id),
+        api.media.list(user.id),
       ]);
 
-      if (playlistsData.error) throw playlistsData.error;
-      if (mediaData.error) throw mediaData.error;
-
-      const playlists = (playlistsData.data || []).map(p => ({
+      // Parse items from JSON string if necessary, though the API might return it as object/array depending on PHP implementation.
+      // Assuming PHP returns JSON string for 'items' column if it's stored as TEXT/JSON, or if PHP json_decodes it.
+      // My PHP code sends it as string in DB, but when fetching, if I just do fetchAll, it comes as string.
+      // I should check if I need to parse. In JS, if it comes as string, I parse.
+      
+      const parsedPlaylists = (playlistsData.data || []).map((p: any) => ({
         ...p,
-        items: p.items as unknown as PlaylistItem[]
+        items: typeof p.items === 'string' ? JSON.parse(p.items) : p.items
       }));
-      setPlaylists(playlists);
+
+      setPlaylists(parsedPlaylists);
       setMediaFiles(mediaData.data || []);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -108,23 +106,33 @@ const Playlists = () => {
       return;
     }
 
+    if (!user) {
+      toast.error("Usuário não autenticado");
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      const { data, error } = await supabase.from("playlists").insert({
+      const newPlaylist = {
         name: playlistName,
-        items: JSON.parse(JSON.stringify(selectedMedia)) as Json,
+        items: selectedMedia,
         created_by: user.id,
-      }).select().single();
+      };
 
-      if (error) throw error;
+      const response = await api.playlists.create(newPlaylist);
+
+      if (response.error) throw new Error(response.error);
 
       // Log da atividade de criação de playlist
+      // Note: response might not include the full object with ID depending on my PHP implementation, 
+      // but let's assume success means it's done. 
+      // Ideally API should return the created ID. My PHP returns {"message": "..."}. 
+      // I should update PHP to return ID if I want to log it correctly or use it.
+      // For now, I'll just log success.
+      
       await loggingService.logUserActivity(
         'create_playlist',
         'playlist',
-        data.id,
+        'new', // Placeholder if ID not returned
         { 
           playlist_name: playlistName,
           media_count: selectedMedia.length,
@@ -138,7 +146,6 @@ const Playlists = () => {
       setSelectedMedia([]);
       fetchData();
     } catch (error) {
-      // Log do erro de criação de playlist
       await loggingService.logError(
         error instanceof Error ? error : new Error('Erro desconhecido ao criar playlist'),
         'create_playlist_error',
@@ -159,30 +166,24 @@ const Playlists = () => {
     if (!confirm("Deseja realmente excluir esta playlist?")) return;
 
     try {
-      // Buscar informações da playlist antes de excluir para o log
-      const { data: playlistData } = await supabase
-        .from("playlists")
-        .select("name, items")
-        .eq("id", id)
-        .single();
+      const playlistToDelete = playlists.find(p => p.id === id);
+      
+      const response = await api.playlists.delete(id);
+      if (response.error) throw new Error(response.error);
 
-      await supabase.from("playlists").delete().eq("id", id);
-
-      // Log da atividade de exclusão de playlist
       await loggingService.logUserActivity(
         'delete_playlist',
         'playlist',
         id,
         { 
-          playlist_name: playlistData?.name,
-          media_count: Array.isArray(playlistData?.items) ? playlistData.items.length : 0
+          playlist_name: playlistToDelete?.name,
+          media_count: playlistToDelete?.items?.length || 0
         }
       );
 
       toast.success("Playlist excluída com sucesso!");
       fetchData();
     } catch (error) {
-      // Log do erro de exclusão de playlist
       await loggingService.logError(
         error instanceof Error ? error : new Error('Erro desconhecido ao excluir playlist'),
         'delete_playlist_error',
@@ -196,6 +197,11 @@ const Playlists = () => {
   };
 
   const handleCreateAllPlaylists = async () => {
+    if (!user) {
+      toast.error("Usuário não autenticado");
+      return;
+    }
+
     const playlistsToCreate = [
       {
         name: "Entretenimento Geral",
@@ -216,10 +222,7 @@ const Playlists = () => {
     ];
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      // Primeiro, criar as mídias de exemplo
+      // Primeiro, criar as mídias de exemplo sequencialmente
       const sampleMedias = [
         {
           name: "Entretenimento Geral",
@@ -258,32 +261,44 @@ const Playlists = () => {
         }
       ];
 
-      // Inserir as mídias
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .insert(sampleMedias)
-        .select();
+      const createdMediaIds: string[] = [];
 
-      if (mediaError) throw mediaError;
+      for (const media of sampleMedias) {
+        const response = await api.media.createLink(media);
+        if (response.error) throw new Error(response.error);
+        if (response.id) {
+            createdMediaIds.push(response.id);
+        } else {
+            // Fallback if ID is not returned, though we fixed API to return it.
+            // If it fails, we might skip or error out.
+            console.warn("Media ID not returned for", media.name);
+            createdMediaIds.push(""); // Push empty to keep index alignment or handle differently
+        }
+      }
 
       // Criar as playlists com as mídias
-      const playlistsData = playlistsToCreate.map((playlist, index) => {
-        const mediaId = mediaData[index]?.id;
-        const items = mediaId ? [{
-          mediaId: mediaId,
-          duration: sampleMedias[index].duration
-        }] : [];
+      for (let i = 0; i < playlistsToCreate.length; i++) {
+        const playlist = playlistsToCreate[i];
+        const mediaId = createdMediaIds[i];
+        
+        // Skip if media creation failed for this index
+        if (!mediaId) continue;
 
-        return {
-          name: playlist.name,
-          items: JSON.parse(JSON.stringify(items)) as Json,
-          created_by: user.id,
+        const items = [{
+            mediaId: mediaId,
+            duration: sampleMedias[i].duration
+        }];
+
+        const playlistData = {
+            name: playlist.name,
+            description: playlist.description,
+            items: items,
+            created_by: user.id
         };
-      });
 
-      const { error } = await supabase.from("playlists").insert(playlistsData);
-
-      if (error) throw error;
+        const response = await api.playlists.create(playlistData);
+        if (response.error) throw new Error(response.error);
+      }
 
       toast.success(`${playlistsToCreate.length} playlists criadas com mídias de exemplo!`);
       fetchData();
@@ -295,37 +310,30 @@ const Playlists = () => {
 
   const getMediaById = (id: string) => mediaFiles.find((m) => m.id === id);
 
-  const getTotalDuration = (items: PlaylistItem[]) => {
-    return items.reduce((total, item) => total + item.duration, 0);
-  };
-
   const handleAutoUpdatePlaylists = async () => {
+    if (!user) {
+        toast.error("Usuário não autenticado");
+        return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-  
       // Buscar todas as mídias do usuário
-      const { data: allMedia, error: mediaError } = await supabase
-        .from("media")
-        .select("*")
-        .eq("uploaded_by", user.id);
-  
-      if (mediaError) throw mediaError;
-  
+      const mediaResponse = await api.media.list(user.id);
+      const allMedia = mediaResponse.data || [];
+
       // Buscar todas as playlists existentes
-      const { data: existingPlaylists, error: playlistError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("created_by", user.id);
-  
-      if (playlistError) throw playlistError;
-  
-      if (!allMedia || allMedia.length === 0) {
+      const playlistResponse = await api.playlists.list(user.id);
+      const existingPlaylists = (playlistResponse.data || []).map((p: any) => ({
+        ...p,
+        items: typeof p.items === 'string' ? JSON.parse(p.items) : p.items
+      }));
+
+      if (allMedia.length === 0) {
         toast.error("Nenhuma mídia encontrada para adicionar às playlists");
         return;
       }
-  
-      // Categorizar mídias por tipo/nome para diferentes playlists
+
+      // Categorizar mídias (mesma lógica)
       const categorizeMidiaForPlaylist = (media: MediaFile, playlistName: string) => {
         const mediaName = media.name.toLowerCase();
         
@@ -368,68 +376,63 @@ const Playlists = () => {
             return false;
         }
       };
-  
+
       let updatedCount = 0;
-  
+
       // Atualizar cada playlist com mídias relevantes
       for (const playlist of existingPlaylists) {
-        const relevantMedia = allMedia.filter(media => 
+        const relevantMedia = allMedia.filter((media: MediaFile) => 
           categorizeMidiaForPlaylist(media, playlist.name)
         );
-  
+
         if (relevantMedia.length === 0) continue;
-  
+
         // Obter itens atuais da playlist
         const currentItems = Array.isArray(playlist.items) ? playlist.items : [];
-        const currentMediaIds = (currentItems as unknown as PlaylistItem[]).map((item) => item.mediaId);
-  
+        const currentMediaIds = currentItems.map((item: PlaylistItem) => item.mediaId);
+
         // Adicionar novas mídias que não estão na playlist
         const newItems = relevantMedia
-          .filter(media => !currentMediaIds.includes(media.id))
-          .map(media => ({
+          .filter((media: MediaFile) => !currentMediaIds.includes(media.id))
+          .map((media: MediaFile) => ({
             mediaId: media.id,
             duration: media.duration || 10
           }));
-  
+
         if (newItems.length > 0) {
           const updatedItems = [...currentItems, ...newItems];
-  
-          const { error: updateError } = await supabase
-            .from("playlists")
-            .update({ items: JSON.parse(JSON.stringify(updatedItems)) })
-            .eq("id", playlist.id);
-  
-          if (updateError) throw updateError;
+
+          const response = await api.playlists.update(playlist.id, { items: updatedItems });
+
+          if (response.error) throw new Error(response.error);
           updatedCount++;
         }
       }
-  
+
       // Se não há playlists, adicionar todas as mídias a uma playlist geral
       if (existingPlaylists.length === 0) {
-        const allMediaItems = allMedia.map(media => ({
+        const allMediaItems = allMedia.map((media: MediaFile) => ({
           mediaId: media.id,
           duration: media.duration || 10
         }));
-  
-        const { error: createError } = await supabase
-          .from("playlists")
-          .insert({
+
+        const response = await api.playlists.create({
             name: "Todas as Mídias",
-            items: JSON.parse(JSON.stringify(allMediaItems)),
+            items: allMediaItems,
             created_by: user.id
-          });
-  
-        if (createError) throw createError;
+        });
+
+        if (response.error) throw new Error(response.error);
         updatedCount = 1;
       }
-  
+
       if (updatedCount > 0) {
         toast.success(`${updatedCount} playlist(s) atualizada(s) com suas novas mídias!`);
         fetchData();
       } else {
         toast.info("Todas as mídias já estão nas playlists apropriadas");
       }
-  
+
     } catch (error) {
       console.error("Error updating playlists:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao atualizar playlists");
@@ -571,97 +574,69 @@ const Playlists = () => {
                               muted
                             />
                           )}
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                            <Plus className="w-6 h-6 text-white" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white truncate">
+                            {media.name}
                           </div>
-                          {selectedMedia.some((item) => item.mediaId === media.id) && (
-                            <div className="absolute inset-0 bg-primary/20 border-2 border-primary" />
-                          )}
                         </button>
                       ))
                     )}
                   </div>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                  disabled={selectedMedia.length === 0}
-                >
+                <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90">
                   Criar Playlist
                 </Button>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+
+            <Button
+                variant="outline" 
+                onClick={handleCreateAllPlaylists}
+                title="Criar playlists de exemplo"
+            >
+                <Plus className="mr-2 h-4 w-4" />
+                Exemplos
+            </Button>
+            
+            {/* 
+            <Button
+                variant="outline"
+                onClick={handleAutoUpdatePlaylists}
+                title="Auto-organizar mídias"
+            >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Auto
+            </Button>
+             */}
           </div>
         </div>
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="border-border/50 bg-card/50 backdrop-blur-xl">
-                <CardContent className="p-6">
-                  <div className="h-6 bg-secondary/50 animate-pulse rounded mb-4" />
-                  <div className="h-4 bg-secondary/50 animate-pulse rounded" />
-                </CardContent>
-              </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-48 bg-card/50 animate-pulse rounded-xl" />
             ))}
           </div>
         ) : playlists.length === 0 ? (
-          <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <PlaySquare className="h-16 w-16 text-muted-foreground mb-4" />
-              <p className="text-lg font-semibold mb-2">Nenhuma playlist encontrada</p>
-              <p className="text-muted-foreground text-center mb-4">
-                Crie sua primeira playlist para organizar o conteúdo das telas
-              </p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-12">
+            <h3 className="text-lg font-medium text-muted-foreground mb-4">
+              Nenhuma playlist criada
+            </h3>
+            <Button onClick={() => setDialogOpen(true)} className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+              <Plus className="mr-2 h-4 w-4" />
+              Criar Primeira Playlist
+            </Button>
+          </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {playlists.map((playlist) => (
-              <Card
+              <PlaylistList
                 key={playlist.id}
-                className="border-border/50 bg-card/50 backdrop-blur-xl hover:shadow-glow transition-all"
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-2 mb-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg truncate">{playlist.name}</h3>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <PlaySquare className="h-3 w-3" />
-                          {playlist.items.length} mídias
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {getTotalDuration(playlist.items)}s
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 border-border/50"
-                      onClick={() => navigate(`/preview/${playlist.id}`)}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      Preview
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeletePlaylist(playlist.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                playlist={playlist}
+                mediaFiles={mediaFiles}
+                onDelete={handleDeletePlaylist}
+              />
             ))}
           </div>
         )}

@@ -1,11 +1,10 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Monitor, LayoutDashboard, Image, PlaySquare, Tv2, LogOut, Menu, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import type { User } from "@supabase/supabase-js";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,41 +12,17 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, logout, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const VIDEO_MODE = import.meta.env.VITE_VIDEO_MODE === "true";
-      if (VIDEO_MODE) {
-        setUser({ email: "video@example.com" } as unknown as User);
-        return;
-      }
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/login");
-      } else {
-        setUser(session.user);
-      }
-    };
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        navigate("/login");
-      } else if (session) {
-        setUser(session.user);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [user, loading, navigate]);
 
   const handleLogout = async () => {
-    const VIDEO_MODE = import.meta.env.VITE_VIDEO_MODE === "true";
-    if (!VIDEO_MODE) {
-      await supabase.auth.signOut();
-    }
+    logout();
     toast.success("Logout realizado com sucesso");
     navigate("/login");
   };
@@ -81,6 +56,7 @@ const Layout = ({ children }: LayoutProps) => {
     </>
   );
 
+  if (loading) return <div>Carregando...</div>;
   if (!user) return null;
 
   return (

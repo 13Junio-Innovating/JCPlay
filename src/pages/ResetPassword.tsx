@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,20 +10,23 @@ import { Monitor } from "lucide-react";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [token, setToken] = useState("");
 
   useEffect(() => {
-    // Verificar se há um hash de recuperação na URL
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const type = hashParams.get('type');
+    // Verificar se há um token na URL
+    const tokenParam = searchParams.get('token');
     
-    if (type !== 'recovery') {
+    if (!tokenParam) {
       toast.error("Link de recuperação inválido");
       navigate("/login");
+    } else {
+      setToken(tokenParam);
     }
-  }, [navigate]);
+  }, [searchParams, navigate]);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,11 +44,11 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
+      const response = await api.auth.resetPassword(password, token);
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error);
+      }
 
       toast.success("Senha atualizada com sucesso!");
       navigate("/login");

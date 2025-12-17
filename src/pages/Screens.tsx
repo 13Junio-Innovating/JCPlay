@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/services/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,55 +29,32 @@ interface Screen {
 }
 
 const Screens = () => {
+  const { user } = useAuth();
   const [screens, setScreens] = useState<Screen[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [screenName, setScreenName] = useState("");
-  const [userPhone, setUserPhone] = useState<string>("");
-  const [savingPhone, setSavingPhone] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [verifying, setVerifying] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000); // Atualiza a cada 30s
-    return () => clearInterval(interval);
-  }, []);
+    if (user) {
+      fetchData();
+      const interval = setInterval(fetchData, 30000); // Atualiza a cada 30s
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const fetchData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [screensData, playlistsData, profileData] = await Promise.all([
-        supabase
-          .from("screens")
-          .select("*")
-          .eq("created_by", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("playlists")
-          .select("id, name")
-          .eq("created_by", user.id)
-          .order("name"),
-        supabase
-          .from("profiles")
-          .select("phone, whatsapp_verified")
-          .eq("id", user.id)
-          .single(),
+      const [screensData, playlistsData] = await Promise.all([
+        api.screens.list(user.id),
+        api.playlists.list(user.id)
       ]);
-
-      if (screensData.error) throw screensData.error;
-      if (playlistsData.error) throw playlistsData.error;
 
       setScreens(screensData.data || []);
       setPlaylists(playlistsData.data || []);
-      const existingPhone = (profileData as any).data?.phone;
-      const verified = (profileData as any).data?.whatsapp_verified || false;
-      setUserPhone(existingPhone || "+55 31988035657");
-      setIsVerified(verified);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
@@ -85,77 +63,21 @@ const Screens = () => {
     }
   };
 
-  const saveUserPhone = async () => {
-    try {
-      setSavingPhone(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-      const { error } = await supabase
-        .from('profiles')
-        .update({ phone: userPhone || null, whatsapp_verified: false })
-        .eq('id', user.id);
-      if (error) throw error;
-      try {
-        const { data } = await supabase.functions.invoke('send-phone-verification', { body: { phone: userPhone, userId: user.id } });
-        if (data?.code) {
-          setVerificationCode(data.code);
-          toast.success('Telefone salvo. Código gerado. Insira para verificar.');
-        } else {
-          toast.success('Telefone salvo e código enviado por WhatsApp/SMS');
-        }
-        setIsVerified(false);
-      } catch {
-        toast.success('Telefone salvo (falha ao enviar verificação)');
-      }
-    } catch (err) {
-      console.error('Error saving phone:', err);
-      toast.error('Erro ao salvar telefone');
-    } finally {
-      setSavingPhone(false);
-    }
-  };
-
-  const verifyPhoneCode = async () => {
-    try {
-      setVerifying(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
-      const { data, error } = await supabase.functions.invoke('verify-phone-code', { body: { userId: user.id, code: verificationCode } });
-      if (error) throw error;
-      if (data?.ok) {
-        toast.success('Telefone verificado com sucesso');
-        setIsVerified(true);
-        setVerificationCode("");
-      } else {
-        toast.error('Código inválido');
-      }
-    } catch (err) {
-      console.error('Error verifying phone:', err);
-      toast.error('Erro ao verificar telefone');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
   const handleCreateScreen = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { data, error } = await supabase.from("screens").insert({
-        name: screenName,
-        created_by: user.id,
-      }).select().single();
+      const response = await api.screens.create(screenName, user.id);
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
       // Log da atividade de criação de tela
       await loggingService.logUserActivity(
         'create_screen',
         'screen',
-        data.id,
+        response.id,
         { screen_name: screenName }
       );
 
@@ -179,12 +101,9 @@ const Screens = () => {
 
   const handleUpdatePlaylist = async (screenId: string, playlistId: string | null) => {
     try {
-      const { error } = await supabase
-        .from("screens")
-        .update({ assigned_playlist: playlistId })
-        .eq("id", screenId);
+      const response = await api.screens.updatePlaylist(screenId, playlistId);
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
       // Log da atividade de atualização de playlist
       await loggingService.logUserActivity(
@@ -215,20 +134,17 @@ const Screens = () => {
 
     try {
       // Buscar informações da tela antes de excluir para o log
-      const { data: screenData } = await supabase
-        .from("screens")
-        .select("name")
-        .eq("id", id)
-        .single();
+      const screenToDelete = screens.find(s => s.id === id);
 
-      await supabase.from("screens").delete().eq("id", id);
+      const response = await api.screens.delete(id);
+      if (response.error) throw new Error(response.error);
 
       // Log da atividade de exclusão de tela
       await loggingService.logUserActivity(
         'delete_screen',
         'screen',
         id,
-        { screen_name: screenData?.name }
+        { screen_name: screenToDelete?.name }
       );
 
       toast.success("Tela excluída com sucesso!");
@@ -261,47 +177,34 @@ const Screens = () => {
       "VIDEOWALL - ÁREA SOCIAL"
     ];
 
+    if (!confirm(`Deseja criar ${screenNames.length} telas automaticamente?`)) return;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const screensToCreate = screenNames.map(name => ({
-        name,
-        created_by: user.id,
-      }));
-
-      const { error } = await supabase.from("screens").insert(screensToCreate);
-
-      if (error) throw error;
+      for (const name of screenNames) {
+        await api.screens.create(name, user.id);
+      }
 
       toast.success(`${screenNames.length} telas criadas com sucesso!`);
       fetchData();
     } catch (error) {
-      console.error("Error creating screens:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao criar telas");
+      console.error("Error creating all screens:", error);
+      toast.error("Erro ao criar telas");
     }
   };
 
   const handleAutoAssignPlaylists = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
       // Buscar todas as telas do usuário
-      const { data: allScreens, error: screensError } = await supabase
-        .from("screens")
-        .select("*")
-        .eq("created_by", user.id);
-
-      if (screensError) throw screensError;
+      const screensResponse = await api.screens.list(user.id);
+      const allScreens: Screen[] = screensResponse.data || [];
 
       // Buscar todas as playlists do usuário
-      const { data: allPlaylists, error: playlistsError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("created_by", user.id);
-
-      if (playlistsError) throw playlistsError;
+      const playlistsResponse = await api.playlists.list(user.id);
+      const allPlaylists: Playlist[] = playlistsResponse.data || [];
 
       if (!allScreens || allScreens.length === 0) {
         toast.error("Nenhuma tela encontrada. Crie telas primeiro.");
@@ -356,13 +259,11 @@ const Screens = () => {
         const targetPlaylist = screenPlaylistMapping(screen.name);
         
         if (targetPlaylist && screen.assigned_playlist !== targetPlaylist.id) {
-          const { error: updateError } = await supabase
-            .from("screens")
-            .update({ assigned_playlist: targetPlaylist.id })
-            .eq("id", screen.id);
-
-          if (updateError) throw updateError;
-          updatedCount++;
+          const response = await api.screens.updatePlaylist(screen.id, targetPlaylist.id);
+          
+          if (!response.error) {
+            updatedCount++;
+          }
         }
       }
 
@@ -455,45 +356,6 @@ const Screens = () => {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
-            <CardContent className="p-6 space-y-2">
-              <Label className="text-xs text-muted-foreground">Telefone de Notificação (WhatsApp)</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={userPhone}
-                  onChange={(e) => setUserPhone(e.target.value)}
-                  placeholder="+55 31 98803-5657"
-                  className="bg-secondary/50 text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-border/50"
-                  onClick={saveUserPhone}
-                  disabled={savingPhone}
-                >
-                  {savingPhone ? 'Salvando...' : 'Salvar e Verificar'}
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Código de verificação</Label>
-                <Input
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder="000000"
-                  className="bg-secondary/50 text-xs w-32"
-                />
-                <Button variant="outline" size="sm" className="border-border/50" onClick={verifyPhoneCode} disabled={verifying || !verificationCode}>
-                  {verifying ? 'Verificando...' : 'Verificar código'}
-                </Button>
-                <span className={`text-xs ${isVerified ? 'text-green-400' : 'text-red-400'}`}>{isVerified ? 'Verificado' : 'Não verificado'}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Usado para receber notificações de status do player.</p>
-            </CardContent>
-          </Card>
         </div>
 
         {loading ? (

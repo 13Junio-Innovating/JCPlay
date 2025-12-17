@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Play, Pause } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "@/services/api";
 
 interface MediaFile {
   id: string;
@@ -22,6 +22,7 @@ interface Playlist {
   id: string;
   name: string;
   items: PlaylistItem[];
+  created_by: string;
 }
 
 const Preview = () => {
@@ -34,26 +35,35 @@ const Preview = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchPlaylist = useCallback(async () => {
+    if (!id) return;
     try {
-      const { data: playlistData, error: playlistError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("id", id)
-        .single();
+      // 1. Fetch Playlist
+      const playlistResponse = await api.playlists.get(id);
+      if (playlistResponse.error || !playlistResponse.data) {
+        throw new Error(playlistResponse.error || "Playlist não encontrada");
+      }
+      const playlistData = playlistResponse.data;
+      
+      // Parse items if string
+      const items = typeof playlistData.items === 'string' 
+        ? JSON.parse(playlistData.items) 
+        : playlistData.items;
 
-      if (playlistError) throw playlistError;
+      const fullPlaylist = { ...playlistData, items };
+      setPlaylist(fullPlaylist);
 
-      const items = playlistData.items as unknown as PlaylistItem[];
-      const mediaIds = items.map((item) => item.mediaId);
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .select("*")
-        .in("id", mediaIds);
+      // 2. Fetch Media by IDs
+      const mediaIds = items.map((item: PlaylistItem) => item.mediaId);
+      if (mediaIds.length > 0) {
+          const mediaResponse = await api.media.getByIds(mediaIds);
+          if (mediaResponse.error) {
+              throw new Error(mediaResponse.error);
+          }
+          setMediaFiles(mediaResponse.data || []);
+      } else {
+          setMediaFiles([]);
+      }
 
-      if (mediaError) throw mediaError;
-
-      setPlaylist({ ...playlistData, items });
-      setMediaFiles(mediaData || []);
     } catch (error) {
       console.error("Error fetching playlist:", error);
       toast.error("Erro ao carregar playlist");
@@ -71,7 +81,8 @@ const Preview = () => {
     if (!isPlaying || !playlist || playlist.items.length === 0) return;
 
     const currentItem = playlist.items[currentIndex];
-    const duration = currentItem.duration * 1000;
+    // Default to 10s if duration missing
+    const duration = (currentItem.duration || 10) * 1000;
 
     const timer = setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % playlist.items.length);
@@ -104,7 +115,7 @@ const Preview = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-lg mb-4">Playlist não encontrada ou vazia</p>
+          <p className="text-lg mb-4">Playlist não encontrada, vazia ou mídia indisponível</p>
           <Button onClick={() => navigate("/playlists")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar

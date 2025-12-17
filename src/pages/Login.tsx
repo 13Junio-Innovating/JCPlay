@@ -1,65 +1,56 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Monitor } from "lucide-react";
 import { loggingService } from "@/services/loggingService";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login, register, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/dashboard");
-      }
-    };
-    checkUser();
-  }, [navigate]);
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const response = await login(email, password);
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error);
+      }
 
-      // Log da atividade de login bem-sucedido
       await loggingService.logUserActivity(
         'login',
         'auth',
         undefined,
-        { email, login_method: 'email_password' }
+        { email, success: true }
       );
-
       toast.success("Login realizado com sucesso!");
       navigate("/dashboard");
     } catch (error) {
-      // Log do erro de login
-      await loggingService.logError(
-        error instanceof Error ? error : new Error('Erro desconhecido no login'),
-        'login_error',
-        { email, attempted_action: 'login' },
-        'medium'
+      await loggingService.logUserActivity(
+        'login_failed',
+        'auth',
+        undefined,
+        { email, success: false, error_message: error instanceof Error ? error.message : "Erro desconhecido" }
       );
-      
-      toast.error(error instanceof Error ? error.message : "Erro ao fazer login");
+      console.error("Login error:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao realizar login");
     } finally {
       setLoading(false);
     }
@@ -70,53 +61,15 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone,
-          },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-        },
-      });
+      const response = await register(email, password, fullName);
 
-      if (error) throw error;
-
-      // Log da atividade de cadastro bem-sucedido
-      await loggingService.logUserActivity(
-        'signup',
-        'auth',
-        undefined,
-        { email, full_name: fullName, signup_method: 'email_password' }
-      );
-
-      // Criar/atualizar perfil com telefone
-      const userId = data.user?.id;
-      if (userId) {
-        await supabase
-          .from('profiles')
-          .upsert({ id: userId, email, full_name: fullName, phone }, { onConflict: 'id' });
-        try {
-          await supabase.functions.invoke('send-phone-verification', { body: { phone, userId } });
-          toast.success("Conta criada e código de verificação enviado por SMS/WhatsApp!");
-        } catch {
-          toast.success("Conta criada com sucesso! (falha ao enviar verificação de telefone)");
-        }
-      } else {
-        toast.success("Conta criada com sucesso!");
+      if (response.error) {
+        throw new Error(response.error);
       }
-      navigate("/dashboard");
+
+      toast.success("Conta criada com sucesso! Faça login.");
     } catch (error) {
-      // Log do erro de cadastro
-      await loggingService.logError(
-        error instanceof Error ? error : new Error('Erro desconhecido no cadastro'),
-        'signup_error',
-        { email, full_name: fullName, attempted_action: 'signup' },
-        'medium'
-      );
-      
+      console.error("Signup error:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
     } finally {
       setLoading(false);
@@ -222,18 +175,6 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone">Telefone (WhatsApp)</Label>
-                  <Input
-                    id="signup-phone"
-                    type="tel"
-                    placeholder="+55 11 91234-5678"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
                     className="bg-secondary/50 border-border"
                   />
                 </div>

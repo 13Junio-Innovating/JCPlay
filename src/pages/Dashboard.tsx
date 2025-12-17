@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/services/api";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Image, PlaySquare, Tv2, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface Screen {
+  last_seen: string | null;
+}
+
 const Dashboard = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     screens: 0,
     playlists: 0,
@@ -17,25 +23,28 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
         const [screensData, playlistsData, mediaData] = await Promise.all([
-          supabase.from("screens").select("*", { count: "exact" }).eq("created_by", user.id),
-          supabase.from("playlists").select("*", { count: "exact" }).eq("created_by", user.id),
-          supabase.from("media").select("*", { count: "exact" }).eq("uploaded_by", user.id),
+          api.screens.list(user.id),
+          api.playlists.list(user.id),
+          api.media.list(user.id),
         ]);
+
+        const screens = screensData.data || [];
+        const playlists = playlistsData.data || [];
+        const media = mediaData.data || [];
 
         // Count active screens (online in last 5 minutes)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const activeScreens = screensData.data?.filter(
-          (screen) => screen.last_seen && screen.last_seen > fiveMinutesAgo
+        const activeScreens = screens.filter(
+          (screen: Screen) => screen.last_seen && screen.last_seen > fiveMinutesAgo
         ).length || 0;
 
         setStats({
-          screens: screensData.count || 0,
-          playlists: playlistsData.count || 0,
-          media: mediaData.count || 0,
+          screens: screens.length,
+          playlists: playlists.length,
+          media: media.length,
           activeScreens,
         });
       } catch (error) {
@@ -46,7 +55,7 @@ const Dashboard = () => {
     };
 
     fetchStats();
-  }, []);
+  }, [user]);
 
   const statCards = [
     {

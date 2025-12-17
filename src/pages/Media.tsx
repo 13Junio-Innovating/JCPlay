@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ interface MediaFile {
 }
 
 const Media = () => {
+  const { user } = useAuth();
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -34,22 +36,19 @@ const Media = () => {
   const MAX_UPLOAD_MB = parseInt(import.meta.env.VITE_MAX_UPLOAD_MB || '70');
 
   useEffect(() => {
-    fetchMedia();
-  }, []);
+    if (user) {
+      fetchMedia();
+    }
+  }, [user]);
 
   const fetchMedia = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from("media")
-        .select("*")
-        .eq("uploaded_by", user.id)
-        .order("created_at", { ascending: false });
+      const response = await api.media.list(user.id);
 
-      if (error) throw error;
-      setMediaFiles(data || []);
+      if (response.error) throw new Error(response.error);
+      setMediaFiles(response.data || []);
     } catch (error) {
       console.error("Error fetching media:", error);
       toast.error("Erro ao carregar mídias");
@@ -81,10 +80,9 @@ const Media = () => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { error: insertError } = await supabase.from("media").insert({
+      const response = await api.media.createLink({
         name,
         url,
         type: "video",
@@ -92,7 +90,7 @@ const Media = () => {
         uploaded_by: user.id,
       });
 
-      if (insertError) throw insertError;
+      if (response.error) throw new Error(response.error);
 
       await loggingService.logUserActivity(
         'add_link_media',
@@ -147,11 +145,10 @@ const Media = () => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
       const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      // const fileName = `${user.id}/${Date.now()}.${fileExt}`; // Not used with PHP backend in the same way
       const fileType = file.type.startsWith("video") ? "video" : "image";
 
       // Simular progresso do upload
@@ -159,29 +156,20 @@ const Media = () => {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 200);
 
-      const { error: uploadError } = await supabase.storage
-        .from("media")
-        .upload(fileName, file);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', name || file.name);
+      formData.append('duration', duration.toString());
+      formData.append('rotation', rotation.toString());
+      formData.append('uploaded_by', user.id);
+      formData.append('type', fileType);
+
+      const response = await api.media.upload(formData);
 
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("media")
-        .getPublicUrl(fileName);
-
-      const { error: insertError } = await supabase.from("media").insert({
-        name: name || file.name,
-        url: publicUrl,
-        type: fileType,
-        duration,
-        rotation,
-        uploaded_by: user.id,
-      });
-
-      if (insertError) throw insertError;
+      if (response.error) throw new Error(response.error);
 
       // Log da atividade de upload de mídia
       await loggingService.logUserActivity(
@@ -228,18 +216,10 @@ const Media = () => {
 
     try {
       // Buscar informações da mídia antes de excluir para o log
-      const { data: mediaData } = await supabase
-        .from("media")
-        .select("name, type, duration")
-        .eq("id", id)
-        .single();
+      const mediaToDelete = mediaFiles.find(m => m.id === id);
 
-      // Extract file path from URL
-      const urlParts = url.split("/");
-      const filePath = urlParts.slice(-2).join("/");
-
-      await supabase.storage.from("media").remove([filePath]);
-      await supabase.from("media").delete().eq("id", id);
+      const response = await api.media.delete(id);
+      if (response.error) throw new Error(response.error);
 
       // Log da atividade de exclusão de mídia
       await loggingService.logUserActivity(
@@ -247,9 +227,9 @@ const Media = () => {
         'media',
         id,
         { 
-          media_name: mediaData?.name,
-          file_type: mediaData?.type,
-          duration: mediaData?.duration
+          media_name: mediaToDelete?.name,
+          file_type: mediaToDelete?.type,
+          duration: mediaToDelete?.duration
         }
       );
 
