@@ -1,173 +1,118 @@
 # COSTAO JC-Vision Play
 
-Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e Supabase. Customizado para a marca COSTAO com suporte a vídeos do YouTube.
+Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript, PHP e MySQL. Customizado para a marca COSTAO.
 
 ## 🚀 Funcionalidades
 
 ### 📺 Gestão de Telas
 - Criação e gerenciamento de múltiplas telas
-- Configuração automática de playlists para cada tela
-- 10 telas pré-configuradas com conteúdo temático
+- Associação de playlists para cada tela
+- Monitoramento de status online/offline
+- Configuração de Player Key para dispositivos
 
 ### 🎵 Sistema de Playlists
 - Criação de playlists personalizadas
-- Associação automática de mídia por categoria
-- Playlists temáticas: Bem-vindo, Cardápio, Entretenimento, Operacional e Totem
+- Organização sequencial de mídias
+- Definição de duração por item
+- Playlists temáticas e operacionais
 
 ### 📱 Mídia e Conteúdo
 - Upload de imagens e vídeos
-- **Suporte a vídeos do YouTube** com autoplay e loop
-- Rotação automática de mídia (0°, 90°, 180°, 270°)
-- Suporte a SVG para gráficos vetoriais
-- 5 mídias de exemplo pré-carregadas
+- Suporte a múltiplos formatos de mídia
+- Organização centralizada de arquivos
+- Gerenciamento otimizado com backend PHP
 
-### 🔄 Player Avançado
-- Reprodução automática de playlists
-- **Embedding de vídeos do YouTube** para modo kiosk
-- Sistema offline com cache local
-- Indicadores visuais de status de conexão
-- Transições suaves entre mídias
+### 🔄 Player & Preview
+- Player web responsivo para exibição em telas
+- Cache local para operação offline
+- Preview em tempo real das playlists
+- Modo Kiosk para Raspberry Pi e outros dispositivos
 
-### 👥 Autenticação
-- Sistema completo de login/registro
-- Recuperação de senha
-- Gestão de usuários via Supabase
+### 👥 Autenticação & Segurança
+- Sistema próprio de login e registro
+- Recuperação de senha via token temporário
+- Controle de sessão seguro
+- Backend PHP com proteção contra SQL Injection
+
+### 📊 Logs e Monitoramento
+- Registro detalhado de atividades do usuário
+- Logs de erros e exceções
+- Dashboard de estatísticas de uso
+- Armazenamento em banco de dados MySQL
 
 ## 🛠️ Tecnologias Utilizadas
 
 - **Frontend**: React 18 + TypeScript + Vite
-- **Styling**: Tailwind CSS + shadcn/ui
-- **Backend**: Supabase (PostgreSQL + Auth + Storage)
-- **Notificações**: React Hot Toast
-- **Ícones**: Lucide React
-- **Branding**: Logo COSTAO integrado
+- **Estilização**: Tailwind CSS + shadcn/ui
+- **Backend**: PHP 8.0+ (Nativo)
+- **Banco de Dados**: MySQL / MariaDB
+- **Servidor Web**: Apache (via XAMPP)
+- **Gerenciamento de Estado**: React Query + Context API
 
 ## 📦 Instalação e Configuração
 
 ### Pré-requisitos
-- Node.js 18+ e npm
-- Conta no Supabase
+- [XAMPP](https://www.apachefriends.org/) (PHP + MySQL + Apache)
+- [Node.js](https://nodejs.org/) 18+ e npm
 
 ### Passos de Instalação
 
-```bash
-# 1. Clone o repositório
-git clone https://github.com/13Junio-Innovating/JC-Vision_Play.git
-
-# 2. Navegue para o diretório
-cd JC-Vision_Play
-
-# 3. Instale as dependências
-npm install
-
-# 4. Configure as variáveis de ambiente
-cp .env.example .env.local
-# Edite o arquivo .env.local com suas credenciais do Supabase
-
-# 5. Execute as migrações do banco
-npx supabase db push
-
-# 6. Inicie o servidor de desenvolvimento
-npm run dev
-```
-
-### Configuração do Supabase
-
-1. Crie um novo projeto no [Supabase](https://supabase.com)
-2. Configure as seguintes variáveis no arquivo `.env.local`:
+1. **Clone o repositório**
+   ```bash
+   git clone https://github.com/13Junio-Innovating/JCPlay.git
+   cd JCPlay
    ```
-   VITE_SUPABASE_URL=sua_url_do_supabase
-   VITE_SUPABASE_ANON_KEY=sua_chave_anonima
+
+2. **Instale as dependências do Frontend**
+   ```bash
+   npm install
    ```
-3. Execute as migrações incluídas no projeto
+
+3. **Configuração do Banco de Dados**
+   - Inicie o Apache e MySQL no painel do XAMPP.
+   - Abra o **PHPMyAdmin** (http://localhost/phpmyadmin).
+   - Crie um banco de dados chamado `JC-Vision-Play`.
+   - Importe o arquivo `database.sql` localizado na raiz do projeto.
+
+4. **Configuração do Backend**
+   - O arquivo de conexão já está configurado para o padrão do XAMPP (`root`, sem senha).
+   - Se necessário, edite `public/api/db_connection.php` com suas credenciais.
+
+5. **Build e Deploy**
+   - Gere a versão de produção:
+     ```bash
+     npm run build
+     ```
+   - O projeto está configurado para rodar na pasta `/jcplay` do servidor web.
+   - Copie todo o conteúdo da pasta `dist/` para `C:\xampp\htdocs\jcplay\`.
+   *(Se a pasta `jcplay` não existir, crie-a dentro de `htdocs`)*
+
+6. **Acesso**
+   - Acesse o sistema em: **http://localhost/jcplay/**
 
 ## 🏗️ Estrutura do Projeto
 
 ```
-src/
-├── components/          # Componentes reutilizáveis
-│   ├── ui/             # Componentes da UI (shadcn)
-│   └── Layout.tsx      # Layout principal com logo COSTAO
-├── pages/              # Páginas da aplicação
-│   ├── Dashboard.tsx   # Painel principal
-│   ├── Media.tsx       # Gestão de mídia
-│   ├── Playlists.tsx   # Gestão de playlists
-│   ├── Screens.tsx     # Gestão de telas
-│   ├── Player.tsx      # Player com suporte YouTube
-│   ├── Preview.tsx     # Preview com suporte YouTube
-│   └── ...            # Outras páginas
-├── lib/               # Utilitários e configurações
-└── App.tsx           # Componente raiz
+JC-Vision_Play/
+├── public/
+│   └── api/            # Backend PHP (Endpoints API)
+│       ├── auth.php    # Autenticação
+│       ├── media.php   # Upload e gestão de mídia
+│       ├── ...         # Outros endpoints
+├── src/
+│   ├── components/     # Componentes React reutilizáveis
+│   ├── contexts/       # Contextos (Auth, etc)
+│   ├── pages/          # Páginas da aplicação (Dashboard, Media, etc)
+│   ├── services/       # Serviços de API (Axios/Fetch)
+│   └── ...
+├── database.sql        # Script de criação do banco MySQL
+├── vite.config.ts      # Configuração do Vite (Base URL /jcplay/)
+└── README.md           # Documentação do projeto
 ```
-
-## 🎯 Fluxo de Uso
-
-1. **Registro/Login**: Acesse o sistema com suas credenciais
-2. **Upload de Mídia**: Faça upload de imagens, vídeos ou URLs do YouTube
-3. **Criar Playlists**: Organize sua mídia em playlists temáticas
-4. **Configurar Telas**: Crie telas e associe playlists
-5. **Reprodução**: Use o Player para exibir conteúdo nas telas
-
-## 🔧 Scripts Disponíveis
-
-```bash
-npm run dev          # Servidor de desenvolvimento
-npm run build        # Build para produção
-npm run preview      # Preview do build
-npm run lint         # Verificação de código
-```
-
-## 📱 Funcionalidades Offline
-
-O sistema inclui suporte offline robusto:
-- Cache automático de playlists e mídia
-- Detecção de status de conexão
-- Fallback para dados locais
-- Indicadores visuais de modo offline
-- **Nota**: Vídeos do YouTube requerem conexão com internet
-
-## 🎨 Temas e Personalização
-
-O sistema vem com 5 temas pré-configurados:
-- **Bem-vindo Hóspede**: Mensagens de boas-vindas
-- **Cardápio Digital**: Menus e ofertas
-- **Entretenimento Geral**: Conteúdo de entretenimento
-- **Informações Operacionais**: Avisos e informações
-- **Totem Vertical**: Conteúdo para displays verticais
-
-## 🎥 Suporte ao YouTube
-
-### URLs Suportadas
-- `https://www.youtube.com/watch?v=VIDEO_ID`
-- `https://youtu.be/VIDEO_ID`
-- `https://www.youtube.com/shorts/VIDEO_ID`
-- URLs de busca do Google com parâmetro `vid:`
-
-### Configuração para Raspberry Pi
-Para melhor performance com YouTube no Raspberry Pi:
-```bash
-chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble \
-  --incognito --autoplay-policy=no-user-gesture-required \
-  --enable-accelerated-video-decode --use-gl=egl \
-  "http://SEU_SERVIDOR/player/PLAYER_KEY"
-```
-
-## 🤝 Contribuição
-
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-feature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
-4. Push para a branch (`git push origin feature/nova-feature`)
-5. Abra um Pull Request
 
 ## 📄 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 📞 Suporte
-
-Para suporte e dúvidas, entre em contato através do [GitHub Issues](https://github.com/13Junio-Innovating/JC-Vision_Play/issues).
+Este projeto está licenciado sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
 
 ---
-
-Desenvolvido com ❤️ pela equipe 13Junio Innovating para COSTAO
+Copyright © 2025 Junio Chaves - 13Junio Innovating
