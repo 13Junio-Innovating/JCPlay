@@ -19,7 +19,7 @@ const Index = () => {
       <div className="container mx-auto px-4 py-16">
         {/* Hero Section */}
         <div className="text-center max-w-4xl mx-auto mb-16">
-         <img src="/logo-costao.png" alt="Costão JCVision" className="mx-auto mb-8 h-24 w-auto" />
+         <img src={`${import.meta.env.BASE_URL}logo-costao.png`} alt="Costão JCVision" className="mx-auto mb-8 h-24 w-auto" />
            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
              COSTAO JCVISION PLAY
            </h1>
