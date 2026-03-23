@@ -52,14 +52,32 @@ export const api = {
   screens: {
     list: async (userId: string) => {
       const response = await fetch(`${API_BASE_URL}/screens.php?user_id=${userId}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao listar telas: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     create: async (name: string, userId: string) => {
       const response = await fetch(`${API_BASE_URL}/screens.php`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, created_by: userId }),
+        body: JSON.stringify({ name, user_id: userId }),
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao criar tela: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     delete: async (id: string) => {
@@ -74,16 +92,43 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: screenId, assigned_playlist: playlistId }),
         });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Falha ao atualizar playlist: ${response.status} ${text.slice(0,200)}`);
+        }
+        if (!contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+        }
         return response.json();
     }
   },
   playlists: {
     list: async (userId: string) => {
       const response = await fetch(`${API_BASE_URL}/playlists.php?user_id=${userId}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao listar playlists: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     get: async (id: string) => {
         const response = await fetch(`${API_BASE_URL}/playlists.php?id=${id}`);
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Falha ao buscar playlist: ${response.status} ${text.slice(0,200)}`);
+        }
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+        }
         return response.json();
     },
     create: async (data: any) => {
@@ -92,6 +137,15 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Falha ao criar playlist: ${response.status} ${text.slice(0,200)}`);
+        }
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+        }
         return response.json();
     },
     update: async (id: string, data: any) => {
@@ -100,23 +154,59 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, ...data }),
         });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Falha ao atualizar playlist: ${response.status} ${text.slice(0,200)}`);
+        }
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+        }
         return response.json();
     },
     delete: async (id: string) => {
         const response = await fetch(`${API_BASE_URL}/playlists.php?id=${id}`, {
             method: 'DELETE',
         });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Falha ao excluir playlist: ${response.status} ${text.slice(0,200)}`);
+        }
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+        }
         return response.json();
     }
   },
   media: {
     list: async (userId: string) => {
       const response = await fetch(`${API_BASE_URL}/media.php?user_id=${userId}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao listar mídias: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     getByIds: async (ids: string[]) => {
       const idsParam = ids.join(',');
       const response = await fetch(`${API_BASE_URL}/media.php?ids=${idsParam}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao buscar mídias: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     upload: async (formData: FormData) => {
@@ -124,6 +214,15 @@ export const api = {
         method: 'POST',
         body: formData,
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao enviar mídia: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     createLink: async (data: any) => {
@@ -134,18 +233,45 @@ export const api = {
         },
         body: JSON.stringify(data),
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao adicionar link: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     delete: async (id: string) => {
       const response = await fetch(`${API_BASE_URL}/media.php?id=${id}`, {
         method: 'DELETE',
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao excluir mídia: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     }
   },
   player: {
     getData: async (key: string) => {
       const response = await fetch(`${API_BASE_URL}/player.php?key=${key}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Falha ao buscar dados do player: ${response.status} ${text.slice(0,200)}`);
+      }
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Resposta inválida do servidor (esperado JSON): ${text.slice(0,200)}`);
+      }
       return response.json();
     },
     heartbeat: async (key: string) => {
