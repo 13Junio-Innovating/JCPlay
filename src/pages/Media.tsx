@@ -33,7 +33,17 @@ const Media = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
-  const MAX_UPLOAD_MB = parseInt(import.meta.env.VITE_MAX_UPLOAD_MB || '70');
+  const MAX_UPLOAD_MB = parseInt(import.meta.env.VITE_MAX_UPLOAD_MB || '100');
+
+  const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  const SERVER_BASE = API_BASE.replace(/\/api$/, '');
+  const resolveMediaUrl = (url: string) => {
+    if (!url) return url;
+    if (/^https?:\/\//.test(url)) return url;
+    if (url.startsWith('/uploads/')) return `${SERVER_BASE}${url}`;
+    if (url.startsWith('/jcplay/uploads/')) return `${SERVER_BASE}${url.replace('/jcplay', '')}`;
+    return url.startsWith('/') ? `${import.meta.env.BASE_URL}${url.slice(1)}` : url;
+  };
 
   useEffect(() => {
     if (user) {
@@ -415,7 +425,7 @@ const Media = () => {
                 <div className="aspect-video bg-secondary/50 overflow-hidden rounded-t-xl relative">
                   {media.type === "image" ? (
                     <img
-                      src={media.url}
+                      src={resolveMediaUrl(media.url)}
                       alt={media.name}
                       className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                     />
@@ -429,7 +439,7 @@ const Media = () => {
                     </div>
                   ) : (
                     <video
-                      src={media.url}
+                      src={resolveMediaUrl(media.url)}
                       className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                       muted
                     />
