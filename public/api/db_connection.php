@@ -12,7 +12,7 @@ if (!class_exists('DbConnection')) {
     {
         private $host = "127.0.0.1";
         private $dbname = "JC-Vision-Play";
-        private $user = "root";
+        private $user = "projetos";
         private $pass = "";
 
         public function getConnection()
