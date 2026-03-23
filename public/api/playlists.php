@@ -42,9 +42,9 @@ switch ($method) {
                 echo json_encode(["error" => "Playlist não encontrada."]);
             }
         } elseif ($userId) {
-            $query = "SELECT * FROM playlists WHERE created_by = :created_by ORDER BY created_at DESC";
+            $query = "SELECT * FROM playlists WHERE user_id = :user_id ORDER BY created_at DESC";
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':created_by', $userId);
+            $stmt->bindParam(':user_id', $userId);
             $stmt->execute();
             $playlists = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(["data" => $playlists]);
@@ -55,8 +55,8 @@ switch ($method) {
         break;
 
     case 'POST':
-        if (!empty($data->name) && !empty($data->created_by)) {
-            $query = "INSERT INTO playlists (name, description, items, created_by) VALUES (:name, :description, :items, :created_by)";
+        if (!empty($data->name) && !empty($data->user_id)) {
+            $query = "INSERT INTO playlists (name, description, items, user_id) VALUES (:name, :description, :items, :user_id)";
             $stmt = $db->prepare($query);
             
             $description = isset($data->description) ? $data->description : '';
@@ -65,7 +65,7 @@ switch ($method) {
             $stmt->bindParam(":name", $data->name);
             $stmt->bindParam(":description", $description);
             $stmt->bindParam(":items", $items);
-            $stmt->bindParam(":created_by", $data->created_by);
+            $stmt->bindParam(":user_id", $data->user_id);
             
             if ($stmt->execute()) {
                 echo json_encode(["message" => "Playlist criada com sucesso."]);

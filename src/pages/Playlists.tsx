@@ -115,7 +115,7 @@ const Playlists = () => {
       const newPlaylist = {
         name: playlistName,
         items: selectedMedia,
-        created_by: user.id,
+        user_id: user.id,
       };
 
       const response = await api.playlists.create(newPlaylist);
@@ -293,7 +293,7 @@ const Playlists = () => {
             name: playlist.name,
             description: playlist.description,
             items: items,
-            created_by: user.id
+            user_id: user.id
         };
 
         const response = await api.playlists.create(playlistData);
