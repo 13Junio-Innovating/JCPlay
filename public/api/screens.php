@@ -39,9 +39,9 @@ function generate_uuid() {
 switch ($method) {
     case 'GET':
         if ($userId) {
-            $query = "SELECT * FROM screens WHERE created_by = :created_by ORDER BY created_at DESC";
+            $query = "SELECT * FROM screens WHERE user_id = :user_id ORDER BY created_at DESC";
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':created_by', $userId);
+            $stmt->bindParam(':user_id', $userId);
             $stmt->execute();
             $screens = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(["data" => $screens]);
@@ -52,16 +52,16 @@ switch ($method) {
         break;
 
     case 'POST':
-        if (!empty($data->name) && !empty($data->created_by)) {
+        if (!empty($data->name) && !empty($data->user_id)) {
             $uuid = generate_uuid();
             $playerKey = bin2hex(random_bytes(8)); // 16 chars
             
-            $query = "INSERT INTO screens (id, name, player_key, created_by) VALUES (:id, :name, :player_key, :created_by)";
+            $query = "INSERT INTO screens (id, name, player_key, user_id) VALUES (:id, :name, :player_key, :user_id)";
             $stmt = $db->prepare($query);
             $stmt->bindParam(':id', $uuid);
             $stmt->bindParam(':name', $data->name);
             $stmt->bindParam(':player_key', $playerKey);
-            $stmt->bindParam(':created_by', $data->created_by);
+            $stmt->bindParam(':user_id', $data->user_id);
 
             if ($stmt->execute()) {
                 http_response_code(201);
