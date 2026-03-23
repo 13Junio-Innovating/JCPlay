@@ -63,7 +63,25 @@ switch ($method) {
         break;
 
     case 'POST':
+        // Check for empty POST which means post_max_size was exceeded
+        if (empty($_POST) && empty($_FILES) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+            http_response_code(413); // Payload Too Large
+            echo json_encode(["error" => "Arquivo muito grande. Limite do servidor excedido."]);
+            exit();
+        }
+
         if (isset($_FILES['file'])) {
+            // Check for specific upload errors
+            if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                http_response_code(400);
+                $errorMsg = "Erro no upload: " . $_FILES['file']['error'];
+                if ($_FILES['file']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['file']['error'] === UPLOAD_ERR_FORM_SIZE) {
+                     $errorMsg = "Arquivo muito grande (limite do servidor).";
+                }
+                echo json_encode(["error" => $errorMsg]);
+                exit();
+            }
+
             // File Upload
             $uploadedBy = isset($_POST['uploaded_by']) ? $_POST['uploaded_by'] : null;
             $duration = isset($_POST['duration']) ? $_POST['duration'] : 10;
