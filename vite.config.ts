@@ -4,10 +4,16 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
-  base: '/jcplay/', // Caminho fixo para rodar no XAMPP em localhost/jcplay
+  base: '/jcplay/',
   server: {
     host: "::",
     port: 5173,
+    proxy: {
+      '/jcplay/api': {
+        target: 'http://localhost',
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react()],
   resolve: {
